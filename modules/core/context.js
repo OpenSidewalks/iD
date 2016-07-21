@@ -1,4 +1,4 @@
-import { t } from '../util/locale';
+import { t, addTranslation, setLocale } from '../util/locale';
 import _ from 'lodash';
 import { Background } from '../renderer/background';
 import { Connection } from './connection';
@@ -16,8 +16,8 @@ export function Context(root) {
             current: function(_) { this._current = _; }
         };
     }
-    root.locale.en = iD.data.en;
-    root.locale.current('en');
+    addTranslation('en', iD.data.en);
+    setLocale('en');
 
     var dispatch = d3.dispatch('enter', 'exit', 'change'),
         context = {};
@@ -331,8 +331,8 @@ export function Context(root) {
         if (locale && locale !== 'en' && iD.data.locales.indexOf(locale) !== -1) {
             localePath = localePath || context.asset('locales/' + locale + '.json');
             d3.json(localePath, function(err, result) {
-                root.locale[locale] = result;
-                root.locale.current(locale);
+                addTranslation(locale, result);
+                setLocale(locale);
                 cb();
             });
         } else {

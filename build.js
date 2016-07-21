@@ -20,10 +20,6 @@ function r(f) {
     return read(__dirname + '/data/' + f);
 }
 
-function rp(f) {
-    return r('presets/' + f);
-}
-
 function validate(file, instance, schema) {
     var result = jsonschema.validate(instance, schema);
     if (result.length) {
@@ -291,25 +287,3 @@ var presets = {en: {presets: translations}};
 var en = _.merge(core, presets);
 fs.writeFileSync('dist/locales/en.json', JSON.stringify(en.en, null, 4));
 
-fs.writeFileSync('data/data.js', 'iD.data = ' + JSON.stringify({
-    deprecated: r('deprecated.json'),
-    discarded: r('discarded.json'),
-    wikipedia: r('wikipedia.json'),
-    imperial: r('imperial.json'),
-    featureIcons: r('feature-icons.json'),
-    locales: r('locales.json'),
-    en: read('dist/locales/en.json'),
-    suggestions: r('name-suggestions.json'),
-    addressFormats: r('address-formats.json'),
-    phoneFormats: r('phone-formats.json'),
-    driveLeft: r('drive-left.json')
-}) + ';');
-
-fs.writeFileSync('dist/presets.js', 'iD.data.presets = ' + JSON.stringify({
-    presets: rp('presets.json'),
-    defaults: rp('defaults.json'),
-    categories: rp('categories.json'),
-    fields: rp('fields.json')
-}) + ';');
-
-fs.writeFileSync('dist/imagery.js', 'iD.data.imagery = ' + JSON.stringify(r('imagery.json')) + ';');

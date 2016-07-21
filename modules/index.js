@@ -33,7 +33,10 @@ export { Features } from './renderer/features';
 export { Map } from './renderer/map';
 export { TileLayer } from './renderer/tile_layer';
 
+import data from '../data/index.js';
+
 export {
+  data,
   actions,
   geo,
   behavior,
