@@ -561,7 +561,7 @@ describe('iD.Way', function() {
             describe('motorway', function() {
 
                 it('returns 2 lanes for highway=motorway', function() {
-                    expect(iD.Way({tags: { highway: 'motorway' }}).lanes().defaults, 'motorway lanes')
+                    expect(iD.Way({tags: { highway: 'motorway' }}).lanes().tagged, 'motorway lanes')
                         .to.eql({ lanes: { count: 2 } });
                     expect(iD.Way({tags: { highway: 'motorway', oneway: 'yes' }}).lanes().defaults, 'motorway lanes')
                         .to.eql({ lanes: { count: 2 } });

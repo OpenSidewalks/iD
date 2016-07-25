@@ -102,38 +102,66 @@ _.extend(Way.prototype, {
     },
 
     lanes: function() {
-        // function parseTurnLane(str) {
-        //     if (!str || str === '') return null;
-        //
-        //     return str.split('|').map(function(s) {
-        //         return s.split(';');
-        //     });
-        // }
+
+        function makeLaneArray(metaData) {
+            return _.range(metaData.count).map(function(i) {
+                var markForward = i < metaData.forward;
+                return {
+                    index: i,
+                    forward: metaData.oneway || markForward,
+                    backward: !(metaData.oneway || markForward)
+                };
+            });
+        }
+
+        function processDirection(metaData, forward, backward) {
+            function sanitize(n, b) {
+                if (Number.isNaN(n)) return metaData.count - sanitize(b); // b will always be a number
+                if (n < 0) return 0;
+                if (n > metaData.count) return metaData.count;
+                return n;
+            }
+
+            function addmetaData(f, b) {
+                metaData.forward = f;
+                metaData.backward = b;
+            }
+
+            if (Number.isNaN(forward) && Number.isNaN(backward)) {
+                // in case of oneway, the renderer should ignore lane direction count
+                return addmetaData(metaData.count - parseInt(metaData.count/2), parseInt(metaData.count/2));
+            }
+
+            forward = sanitize(forward, backward);
+            backward = sanitize(backward, forward);
+
+            if (forward + backward !== metaData.count) {
+                return addmetaData(forward, metaData.count - forward);
+            }
+            return  addmetaData(forward, backward);
+        }
 
         if (!this.tags.highway) return null;
-        var defaultLanes = {}, tagged = {};
+        var metaData = {};
         switch (this.tags.highway) {
             case 'trunk':
             case 'motorway':
-                defaultLanes.count = this.isOneWay() ? 2 : 4;
+                metaData.count = this.isOneWay() ? 2 : 4;
                 break;
             default:
-                defaultLanes.count = this.isOneWay() ? 1 : 2;
+                metaData.count = this.isOneWay() ? 1 : 2;
                 break;
         }
 
-        tagged.oneway = this.isOneWay();
-        tagged.lanes = {};
+        metaData.oneway = this.isOneWay();
 
-        if (this.tags.lanes) tagged.lanes.count = parseInt(this.tags.lanes);
-        if (this.tags['lanes:forward']) tagged.lanes.forward = parseInt(this.tags['lanes:forward']);
-        if (this.tags['lanes:backward']) tagged.lanes.backward = parseInt(this.tags['lanes:backward']);
+        if (this.tags.lanes) metaData.count = parseInt(this.tags.lanes);
+
+        processDirection(metaData, parseInt(this.tags['lanes:forward']), parseInt(this.tags['lanes:backward']));
 
         return {
-            defaults: {
-                lanes: defaultLanes
-            },
-            tagged: tagged
+            lanesMetaData: metaData,
+            lanesArray: makeLaneArray(metaData)
         };
     },
 

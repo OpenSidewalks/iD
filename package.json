@@ -10,6 +10,7 @@
   "scripts": {
     "test": "npm run lint && phantomjs node_modules/mocha-phantomjs-core/mocha-phantomjs-core.js test/index.html dot && make && phantomjs node_modules/mocha-phantomjs-core/mocha-phantomjs-core.js test/index_packaged.html dot",
     "start": "http-server .",
+    "rollup": "rollup -c rollup.config.js -w -f umd -n iD modules/index.js --no-strict -o js/lib/id/index.js",
     "lint": "eslint js/id test/spec modules"
   },
   "repository": {

@@ -3,46 +3,13 @@ export function lanes(field, context) {
         LANE_WIDTH = 40,
         LANE_HEIGHT = 200,
         wayID,
-        laneData;
+        lanesData,
+        lanesArray;
 
-    function processData(raw) {
-        var laneCount = raw.tagged.lanes.count || raw.defaults.lanes.count;
-        var lanesArray = [];
-
-        for (var i = 0; i < laneCount; i++) {
-            lanesArray.push({ key: i });
-        }
-
-        if (raw.tagged.oneway) {
-            lanesArray.forEach(function(l) {
-                l.forward = true;
-                l.backward = false;
-            });
-        } else {
-            var countForward = raw.tagged.lanes.forward || 0;
-            var countBackward = raw.tagged.lanes.backward || 0;
-
-            if (countForward + countBackward === 0) {
-                countForward = laneCount/2;
-                countBackward = laneCount/2;
-            }
-
-            for (i = 0; i < countForward; i++) {
-                lanesArray[i].forward = true;
-                lanesArray[i].backward = false;
-            }
-            for (i = 0; i < countBackward; i++) {
-                lanesArray[countForward + i].forward = false;
-                lanesArray[countForward + i].backward = true;
-            }
-        }
-
-        return lanesArray;
-    }
     function lanes(selection) {
-        laneData = processData(context.entity(wayID).lanes());
-
-        var laneCount = laneData.length;
+        lanesData = context.entity(wayID).lanes();
+        lanesArray = lanesData.lanesArray;
+        var laneCount = lanesArray.length;
 
         // if form field is hidden or has detached from dom, clean up.
         if (!d3.select('.inspector-wrap.inspector-hidden').empty() || !selection.node().parentNode) {
@@ -82,7 +49,7 @@ export function lanes(field, context) {
             });
 
         var lane = lanesSelection.selectAll('.lane')
-           .data(laneData);
+           .data(lanesArray);
 
         var enter = lane.enter()
             .append('g')
@@ -115,7 +82,7 @@ export function lanes(field, context) {
 
         lane
             .attr('transform', function(d) {
-                return 'translate(' + (LANE_WIDTH*d.key*1.5)+ ', 0)';
+                return 'translate(' + (LANE_WIDTH*d.index*1.5)+ ', 0)';
             });
 
         lane.select('.forward')
