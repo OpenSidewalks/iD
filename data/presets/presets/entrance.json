@@ -4,7 +4,8 @@
         "vertex"
     ],
     "tags": {
-        "entrance": "*"
+        "entrance": "*",
+        "project":"OpenSidewalks"
     },
     "fields": [
         "entrance",

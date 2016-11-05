@@ -12,7 +12,8 @@
         "vertex"
     ],
     "tags": {
-        "kerb": "lowered"
+        "kerb": "lowered",
+        "project":"OpenSidewalks"
     },
     "terms": [],
     "name": "Sidewalk Curb Ramp"

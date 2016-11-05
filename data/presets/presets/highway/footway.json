@@ -19,7 +19,8 @@
         "walk"
     ],
     "tags": {
-        "highway": "footway"
+        "highway": "footway",
+        "project":"OpenSidewalks"
     },
     "name": "Foot Path"
 }

@@ -14,7 +14,8 @@
     ],
     "tags": {
         "highway": "footway",
-        "footway": "sidewalk"
+        "footway": "sidewalk",
+        "project":"OpenSidewalks"
     },
     "terms": [],
     "name": "Sidewalk"

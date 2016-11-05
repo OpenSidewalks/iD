@@ -13,7 +13,8 @@
     "tags": {
         "highway": "footway",
         "footway": "crossing",
-        "crossing": "zebra"
+        "crossing": "zebra",
+        "project":"OpenSidewalks"
     },
     "terms": [
         "zebra crossing"
