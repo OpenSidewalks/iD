@@ -905,19 +905,24 @@
             "value": "phone"
         },
         {
-            "key": "entrance"
+            "key": "project",
+            "value": "OpenSidewalks"
         },
         {
             "key": "footway",
             "value": "crossing"
         },
         {
-            "key": "crossing",
-            "value": "zebra"
+            "key": "project",
+            "value": "OpenSidewalks"
         },
         {
-            "key": "footway",
-            "value": "sidewalk"
+            "key": "project",
+            "value": "OpenSidewalks"
+        },
+        {
+            "key": "project",
+            "value": "OpenSidewalks"
         },
         {
             "key": "ford",
@@ -975,16 +980,16 @@
             "value": "crossing"
         },
         {
-            "key": "crossing",
-            "value": "zebra"
+            "key": "project",
+            "value": "OpenSidewalks"
         },
         {
             "key": "highway",
             "value": "cycleway"
         },
         {
-            "key": "highway",
-            "value": "footway"
+            "key": "project",
+            "value": "OpenSidewalks"
         },
         {
             "key": "highway",
@@ -1029,6 +1034,10 @@
         {
             "key": "highway",
             "value": "raceway"
+        },
+        {
+            "key": "project",
+            "value": "OpenSidewalks"
         },
         {
             "key": "highway",
@@ -1079,8 +1088,8 @@
             "value": "services"
         },
         {
-            "key": "highway",
-            "value": "steps"
+            "key": "project",
+            "value": "OpenSidewalks"
         },
         {
             "key": "highway",

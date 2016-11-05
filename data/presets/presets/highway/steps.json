@@ -11,7 +11,8 @@
         "line"
     ],
     "tags": {
-        "highway": "steps"
+        "highway": "steps",
+        "project": "OpenSidewalks"
     },
     "terms": [
         "ramp",

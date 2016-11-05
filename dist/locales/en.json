@@ -2589,6 +2589,10 @@
                 "name": "Motor Raceway",
                 "terms": "auto*,race*,nascar"
             },
+            "highway/ramp": {
+                "name": "Ramp",
+                "terms": "ramp,stairs,staircase"
+            },
             "highway/residential": {
                 "name": "Residential Road",
                 "terms": ""

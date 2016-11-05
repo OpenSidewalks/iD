@@ -4090,11 +4090,13 @@
             "vertex"
         ],
         "tags": {
-            "entrance": "*"
+            "entrance": "*",
+            "project": "OpenSidewalks"
         },
         "fields": [
             "entrance",
             "access_simple",
+            "wheelchair",
             "address"
         ],
         "name": "Entrance/Exit"
@@ -4122,6 +4124,7 @@
         "fields": [
             "surface",
             "access",
+            "wheelchair",
             "crossing",
             "tactile_paving"
         ],
@@ -4131,7 +4134,8 @@
         "tags": {
             "highway": "footway",
             "footway": "crossing",
-            "crossing": "zebra"
+            "crossing": "zebra",
+            "project": "OpenSidewalks"
         },
         "terms": [
             "zebra crossing"
@@ -4141,6 +4145,7 @@
     "footway/curbramp": {
         "fields": [
             "access",
+            "wheelchair",
             "kerb",
             "height",
             "tactile_paving",
@@ -4150,7 +4155,10 @@
         "geometry": [
             "vertex"
         ],
-        "tags": {},
+        "tags": {
+            "kerb": "lowered",
+            "project": "OpenSidewalks"
+        },
         "terms": [],
         "name": "Sidewalk Curb Ramp"
     },
@@ -4159,6 +4167,7 @@
         "fields": [
             "surface",
             "access",
+            "wheelchair",
             "width",
             "shade",
             "lit",
@@ -4169,7 +4178,8 @@
         ],
         "tags": {
             "highway": "footway",
-            "footway": "sidewalk"
+            "footway": "sidewalk",
+            "project": "OpenSidewalks"
         },
         "terms": [],
         "name": "Sidewalk"
@@ -4368,6 +4378,7 @@
     "highway/crossing": {
         "fields": [
             "crossing",
+            "wheelchair",
             "kerb",
             "tactile_paving"
         ],
@@ -4383,6 +4394,7 @@
     "highway/crosswalk": {
         "fields": [
             "crossing",
+            "wheelchair",
             "kerb",
             "tactile_paving"
         ],
@@ -4391,7 +4403,8 @@
         ],
         "tags": {
             "highway": "crossing",
-            "crossing": "zebra"
+            "crossing": "zebra",
+            "project": "OpenSidewalks"
         },
         "terms": [
             "zebra crossing"
@@ -4423,6 +4436,7 @@
         "icon": "highway-footway",
         "fields": [
             "surface",
+            "wheelchair",
             "lit",
             "width",
             "structure",
@@ -4440,7 +4454,8 @@
             "walk"
         ],
         "tags": {
-            "highway": "footway"
+            "highway": "footway",
+            "project": "OpenSidewalks"
         },
         "name": "Foot Path"
     },
@@ -4674,6 +4689,31 @@
         ],
         "name": "Motor Raceway"
     },
+    "highway/ramp": {
+        "fields": [
+            "surface",
+            "wheelchair",
+            "lit",
+            "width",
+            "incline_steps",
+            "handrail"
+        ],
+        "icon": "highway-path",
+        "geometry": [
+            "line"
+        ],
+        "tags": {
+            "highway": "steps",
+            "ramp": "yes",
+            "project": "OpenSidewalks"
+        },
+        "terms": [
+            "ramp",
+            "stairs",
+            "staircase"
+        ],
+        "name": "Ramp"
+    },
     "highway/residential": {
         "icon": "highway-residential",
         "fields": [
@@ -4899,7 +4939,8 @@
             "line"
         ],
         "tags": {
-            "highway": "steps"
+            "highway": "steps",
+            "project": "OpenSidewalks"
         },
         "terms": [
             "ramp",

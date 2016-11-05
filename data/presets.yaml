@@ -2107,7 +2107,7 @@ en:
         name: Emergency Phone
         terms: '<translate with synonyms or related terms for ''Emergency Phone'', separated by commas>'
       entrance:
-        # entrance=*
+        # 'entrance=*, project=OpenSidewalks'
         name: Entrance/Exit
         terms: '<translate with synonyms or related terms for ''Entrance/Exit'', separated by commas>'
       footway/crossing:
@@ -2115,15 +2115,16 @@ en:
         name: Street Crossing
         terms: '<translate with synonyms or related terms for ''Street Crossing'', separated by commas>'
       footway/crosswalk:
-        # 'highway=footway, footway=crossing, crossing=zebra'
+        # 'highway=footway, footway=crossing, crossing=zebra, project=OpenSidewalks'
         name: Pedestrian Crosswalk
         # 'terms: zebra crossing'
         terms: '<translate with synonyms or related terms for ''Pedestrian Crosswalk'', separated by commas>'
       footway/curbramp:
+        # 'kerb=lowered, project=OpenSidewalks'
         name: Sidewalk Curb Ramp
         terms: '<translate with synonyms or related terms for ''Sidewalk Curb Ramp'', separated by commas>'
       footway/sidewalk:
-        # 'highway=footway, footway=sidewalk'
+        # 'highway=footway, footway=sidewalk, project=OpenSidewalks'
         name: Sidewalk
         terms: '<translate with synonyms or related terms for ''Sidewalk'', separated by commas>'
       ford:
@@ -2187,7 +2188,7 @@ en:
         name: Street Crossing
         terms: '<translate with synonyms or related terms for ''Street Crossing'', separated by commas>'
       highway/crosswalk:
-        # 'highway=crossing, crossing=zebra'
+        # 'highway=crossing, crossing=zebra, project=OpenSidewalks'
         name: Pedestrian Crosswalk
         # 'terms: zebra crossing'
         terms: '<translate with synonyms or related terms for ''Pedestrian Crosswalk'', separated by commas>'
@@ -2197,7 +2198,7 @@ en:
         # 'terms: bike'
         terms: '<translate with synonyms or related terms for ''Cycle Path'', separated by commas>'
       highway/footway:
-        # highway=footway
+        # 'highway=footway, project=OpenSidewalks'
         name: Foot Path
         # 'terms: hike,hiking,trackway,trail,walk'
         terms: '<translate with synonyms or related terms for ''Foot Path'', separated by commas>'
@@ -2250,6 +2251,11 @@ en:
         name: Motor Raceway
         # 'terms: auto*,race*,nascar'
         terms: '<translate with synonyms or related terms for ''Motor Raceway'', separated by commas>'
+      highway/ramp:
+        # 'highway=steps, ramp=yes, project=OpenSidewalks'
+        name: Ramp
+        # 'terms: ramp,stairs,staircase'
+        terms: '<translate with synonyms or related terms for ''Ramp'', separated by commas>'
       highway/residential:
         # highway=residential
         name: Residential Road
@@ -2302,7 +2308,7 @@ en:
         # 'terms: services,travel plaza,service station'
         terms: '<translate with synonyms or related terms for ''Service Area'', separated by commas>'
       highway/steps:
-        # highway=steps
+        # 'highway=steps, project=OpenSidewalks'
         name: Steps
         # 'terms: ramp,stairs,staircase'
         terms: '<translate with synonyms or related terms for ''Steps'', separated by commas>'
