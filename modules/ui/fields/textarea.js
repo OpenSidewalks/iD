@@ -1,39 +1,52 @@
+import * as d3 from 'd3';
 import { t } from '../../util/locale';
+import {
+    utilGetSetValue,
+    utilNoAuto,
+    utilRebind
+} from '../../util';
 
-export function textarea(field) {
+
+export function uiFieldTextarea(field) {
     var dispatch = d3.dispatch('change'),
-        input;
+        input = d3.select(null);
+
 
     function textarea(selection) {
         input = selection.selectAll('textarea')
             .data([0]);
 
-        input.enter().append('textarea')
+        input = input.enter()
+            .append('textarea')
             .attr('id', 'preset-input-' + field.id)
             .attr('placeholder', field.placeholder() || t('inspector.unknown'))
-            .attr('maxlength', 255);
-
-        input
+            .attr('maxlength', 255)
+            .call(utilNoAuto)
             .on('input', change(true))
             .on('blur', change())
-            .on('change', change());
+            .on('change', change())
+            .merge(input);
     }
+
 
     function change(onInput) {
         return function() {
             var t = {};
-            t[field.key] = input.value() || undefined;
-            dispatch.change(t, onInput);
+            t[field.key] = utilGetSetValue(input) || undefined;
+            dispatch.call('change', this, t, onInput);
         };
     }
 
+
     textarea.tags = function(tags) {
-        input.value(tags[field.key] || '');
+        utilGetSetValue(input, tags[field.key] || '');
     };
+
 
     textarea.focus = function() {
         input.node().focus();
     };
 
-    return d3.rebind(textarea, dispatch, 'on');
+
+    return utilRebind(textarea, dispatch, 'on');
 }

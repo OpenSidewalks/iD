@@ -1,8 +1,12 @@
-export function TagClasses() {
+import * as d3 from 'd3';
+import { osmPavedTags } from '../osm/tags';
+
+
+export function svgTagClasses() {
     var primaries = [
             'building', 'highway', 'railway', 'waterway', 'aeroway',
             'motorway', 'boundary', 'power', 'amenity', 'natural', 'landuse',
-            'leisure', 'place'
+            'leisure', 'military', 'place'
         ],
         statuses = [
             'proposed', 'construction', 'disused', 'abandoned', 'dismantled',
@@ -85,8 +89,8 @@ export function TagClasses() {
                 var paved = (t.highway !== 'track');
                 for (k in t) {
                     v = t[k];
-                    if (k in iD.pavedTags) {
-                        paved = !!iD.pavedTags[k][v];
+                    if (k in osmPavedTags) {
+                        paved = !!osmPavedTags[k][v];
                         break;
                     }
                 }
@@ -102,6 +106,7 @@ export function TagClasses() {
             }
         });
     };
+
 
     tagClasses.tags = function(_) {
         if (!arguments.length) return tags;

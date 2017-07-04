@@ -1,33 +1,50 @@
+import * as d3 from 'd3';
 import { t } from '../util/locale';
-import { Entity } from '../core/index';
-import { Icon } from '../svg/index';
-import { Select } from '../modes/index';
-import { displayName } from '../util/index';
+import { modeSelect } from '../modes/index';
+import { osmEntity } from '../osm/index';
+import { svgIcon } from '../svg/index';
+import { utilDisplayName } from '../util/index';
 
-export function SelectionList(context, selectedIDs) {
+
+export function uiSelectionList(context, selectedIDs) {
 
     function selectEntity(entity) {
-        context.enter(Select(context, [entity.id]).suppressMenu(true));
+        context.enter(modeSelect(context, [entity.id]));
+    }
+
+
+    function deselectEntity(entity) {
+        d3.event.stopPropagation();
+        var index = selectedIDs.indexOf(entity.id);
+        if (index > -1) {
+            selectedIDs.splice(index, 1);
+        }
+        context.enter(modeSelect(context, selectedIDs));
     }
 
 
     function selectionList(selection) {
         selection.classed('selection-list-pane', true);
 
-        var header = selection.append('div')
+        var header = selection
+            .append('div')
             .attr('class', 'header fillL cf');
 
-        header.append('h3')
+        header
+            .append('h3')
             .text(t('inspector.multiselect'));
 
-        var listWrap = selection.append('div')
+        var listWrap = selection
+            .append('div')
             .attr('class', 'inspector-body');
 
-        var list = listWrap.append('div')
+        var list = listWrap
+            .append('div')
             .attr('class', 'feature-list cf');
 
         context.history().on('change.selection-list', drawList);
         drawList();
+
 
         function drawList() {
             var entities = selectedIDs
@@ -35,25 +52,44 @@ export function SelectionList(context, selectedIDs) {
                 .filter(function(entity) { return entity; });
 
             var items = list.selectAll('.feature-list-item')
-                .data(entities, Entity.key);
+                .data(entities, osmEntity.key);
 
-            var enter = items.enter().append('button')
+            items.exit()
+                .remove();
+
+            // Enter
+            var enter = items.enter()
+                .append('div')
                 .attr('class', 'feature-list-item')
                 .on('click', selectEntity);
 
-            // Enter
-            var label = enter.append('div')
-                .attr('class', 'label')
-                .call(Icon('', 'pre-text'));
+            var label = enter
+                .append('button')
+                .attr('class', 'label');
 
-            label.append('span')
+            enter
+                .append('button')
+                .attr('class', 'close')
+                .on('click', deselectEntity)
+                .call(svgIcon('#icon-close'));
+
+            label
+                .append('span')
+                .attr('class', 'entity-geom-icon')
+                .call(svgIcon('', 'pre-text'));
+
+            label
+                .append('span')
                 .attr('class', 'entity-type');
 
-            label.append('span')
+            label
+                .append('span')
                 .attr('class', 'entity-name');
 
             // Update
-            items.selectAll('use')
+            items = items.merge(enter);
+
+            items.selectAll('.entity-geom-icon use')
                 .attr('href', function() {
                     var entity = this.parentNode.parentNode.__data__;
                     return '#icon-' + context.geometry(entity.id);
@@ -63,14 +99,9 @@ export function SelectionList(context, selectedIDs) {
                 .text(function(entity) { return context.presets().match(entity, context.graph()).name(); });
 
             items.selectAll('.entity-name')
-                .text(function(entity) { return displayName(entity); });
-
-            // Exit
-            items.exit()
-                .remove();
+                .text(function(entity) { return utilDisplayName(entity); });
         }
     }
 
     return selectionList;
-
 }

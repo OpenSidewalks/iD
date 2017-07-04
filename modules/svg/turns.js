@@ -1,7 +1,10 @@
-import { angle } from '../geo/index';
+import { geoAngle } from '../geo/index';
 
-export function Turns(projection) {
-    return function drawTurns(surface, graph, turns) {
+
+export function svgTurns(projection) {
+
+    return function drawTurns(selection, graph, turns) {
+
         function key(turn) {
             return [turn.from.node + turn.via.node + turn.to.node].join('-');
         }
@@ -15,14 +18,19 @@ export function Turns(projection) {
                 (!turn.indirect_restriction && /^only_/.test(restriction) ? 'only' : 'no') + u;
         }
 
-        var groups = surface.selectAll('.layer-hit').selectAll('g.turn')
+        var groups = selection.selectAll('.layer-hit').selectAll('g.turn')
             .data(turns, key);
 
-        // Enter
-        var enter = groups.enter().append('g')
+        groups.exit()
+            .remove();
+
+
+        var enter = groups.enter()
+            .append('g')
             .attr('class', 'turn');
 
-        var nEnter = enter.filter(function (turn) { return !turn.u; });
+        var nEnter = enter
+            .filter(function (turn) { return !turn.u; });
 
         nEnter.append('rect')
             .attr('transform', 'translate(-22, -12)')
@@ -35,7 +43,8 @@ export function Turns(projection) {
             .attr('height', '24');
 
 
-        var uEnter = enter.filter(function (turn) { return turn.u; });
+        var uEnter = enter
+            .filter(function (turn) { return turn.u; });
 
         uEnter.append('circle')
             .attr('r', '16');
@@ -46,12 +55,14 @@ export function Turns(projection) {
             .attr('height', '32');
 
 
-        // Update
+        groups = groups
+            .merge(enter);
+
         groups
             .attr('transform', function (turn) {
                 var v = graph.entity(turn.via.node),
                     t = graph.entity(turn.to.node),
-                    a = angle(v, t, projection),
+                    a = geoAngle(v, t, projection),
                     p = projection(v.loc),
                     r = turn.u ? 0 : 60;
 
@@ -64,11 +75,6 @@ export function Turns(projection) {
 
         groups.select('rect');
         groups.select('circle');
-
-
-        // Exit
-        groups.exit()
-            .remove();
 
         return this;
     };

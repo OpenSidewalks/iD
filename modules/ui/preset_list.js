@@ -1,16 +1,21 @@
-import { t } from '../util/locale';
-import { Browse } from '../modes/index';
-import { ChangePreset } from '../actions/index';
-import { Delete } from '../operations/index';
-import { Icon } from '../svg/index';
-import { PresetIcon } from './preset_icon';
-import { TagReference } from './tag_reference';
+import * as d3 from 'd3';
+import { d3keybinding } from '../lib/d3.keybinding.js';
+import { t, textDirection } from '../util/locale';
+import { actionChangePreset } from '../actions/index';
+import { operationDelete } from '../operations/index';
+import { modeBrowse } from '../modes/index';
+import { svgIcon } from '../svg/index';
+import { uiPresetIcon } from './preset_icon';
+import { uiTagReference } from './tag_reference';
+import { utilNoAuto, utilRebind } from '../util';
 
-export function PresetList(context) {
+
+export function uiPresetList(context) {
     var dispatch = d3.dispatch('choose'),
         id,
         currentPreset,
         autofocus = false;
+
 
     function presetList(selection) {
         var entity = context.entity(id),
@@ -25,38 +30,41 @@ export function PresetList(context) {
 
         selection.html('');
 
-        var messagewrap = selection.append('div')
+        var messagewrap = selection
+            .append('div')
             .attr('class', 'header fillL cf');
 
-        var message = messagewrap.append('h3')
+        var message = messagewrap
+            .append('h3')
             .text(t('inspector.choose'));
 
         if (context.entity(id).isUsed(context.graph())) {
-            messagewrap.append('button')
+            messagewrap
+                .append('button')
                 .attr('class', 'preset-choose')
-                .on('click', function() { dispatch.choose(currentPreset); })
-                .append('span')
-                .html('&#9658;');
+                .on('click', function() { dispatch.call('choose', this, currentPreset); })
+                .call(svgIcon((textDirection === 'rtl') ? '#icon-backward' : '#icon-forward'));
         } else {
-            messagewrap.append('button')
+            messagewrap
+                .append('button')
                 .attr('class', 'close')
                 .on('click', function() {
-                    context.enter(Browse(context));
+                    context.enter(modeBrowse(context));
                 })
-                .call(Icon('#icon-close'));
+                .call(svgIcon('#icon-close'));
         }
 
         function keydown() {
             // hack to let delete shortcut work when search is autofocused
             if (search.property('value').length === 0 &&
-                (d3.event.keyCode === d3.keybinding.keyCodes['⌫'] ||
-                 d3.event.keyCode === d3.keybinding.keyCodes['⌦'])) {
+                (d3.event.keyCode === d3keybinding.keyCodes['⌫'] ||
+                 d3.event.keyCode === d3keybinding.keyCodes['⌦'])) {
                 d3.event.preventDefault();
                 d3.event.stopPropagation();
-                Delete([id], context)();
+                operationDelete([id], context)();
             } else if (search.property('value').length === 0 &&
                 (d3.event.ctrlKey || d3.event.metaKey) &&
-                d3.event.keyCode === d3.keybinding.keyCodes.z) {
+                d3.event.keyCode === d3keybinding.keyCodes.z) {
                 d3.event.preventDefault();
                 d3.event.stopPropagation();
                 context.undo();
@@ -89,31 +97,37 @@ export function PresetList(context) {
             }
         }
 
-        var searchWrap = selection.append('div')
+        var searchWrap = selection
+            .append('div')
             .attr('class', 'search-header');
 
-        var search = searchWrap.append('input')
+        var search = searchWrap
+            .append('input')
             .attr('class', 'preset-search-input')
             .attr('placeholder', t('inspector.search'))
             .attr('type', 'search')
+            .call(utilNoAuto)
             .on('keydown', keydown)
             .on('keypress', keypress)
             .on('input', inputevent);
 
         searchWrap
-            .call(Icon('#icon-search', 'pre-text'));
+            .call(svgIcon('#icon-search', 'pre-text'));
 
         if (autofocus) {
             search.node().focus();
         }
 
-        var listWrap = selection.append('div')
+        var listWrap = selection
+            .append('div')
             .attr('class', 'inspector-body');
 
-        var list = listWrap.append('div')
+        var list = listWrap
+            .append('div')
             .attr('class', 'preset-list fillL cf')
             .call(drawList, context.presets().defaults(geometry, 36));
     }
+
 
     function drawList(list, presets) {
         var collection = presets.collection.map(function(preset) {
@@ -123,21 +137,21 @@ export function PresetList(context) {
         var items = list.selectAll('.preset-list-item')
             .data(collection, function(d) { return d.preset.id; });
 
-        items.enter().append('div')
-            .attr('class', function(item) { return 'preset-list-item preset-' + item.preset.id.replace('/', '-'); })
-            .classed('current', function(item) { return item.preset === currentPreset; })
-            .each(function(item) {
-                d3.select(this).call(item);
-            })
-            .style('opacity', 0)
-            .transition()
-            .style('opacity', 1);
-
         items.order();
 
         items.exit()
             .remove();
+
+        items.enter()
+            .append('div')
+            .attr('class', function(item) { return 'preset-list-item preset-' + item.preset.id.replace('/', '-'); })
+            .classed('current', function(item) { return item.preset === currentPreset; })
+            .each(function(item) { d3.select(this).call(item); })
+            .style('opacity', 0)
+            .transition()
+            .style('opacity', 1);
     }
+
 
     function CategoryItem(preset) {
         var box, sublist, shown = false;
@@ -146,24 +160,32 @@ export function PresetList(context) {
             var wrap = selection.append('div')
                 .attr('class', 'preset-list-button-wrap category col12');
 
-            wrap.append('button')
+            var button = wrap
+                .append('button')
                 .attr('class', 'preset-list-button')
                 .classed('expanded', false)
-                .call(PresetIcon()
+                .call(uiPresetIcon()
                     .geometry(context.geometry(id))
                     .preset(preset))
                 .on('click', function() {
                     var isExpanded = d3.select(this).classed('expanded');
-                    var triangle = isExpanded ? '▶ ' :  '▼ ';
-                    d3.select(this).classed('expanded', !isExpanded);
-                    d3.select(this).selectAll('.label').text(triangle + preset.name());
+                    var iconName = isExpanded ?
+                        (textDirection === 'rtl' ? '#icon-backward' : '#icon-forward') : '#icon-down';
+                    d3.select(this)
+                        .classed('expanded', !isExpanded);
+                    d3.select(this).selectAll('div.label svg.icon use')
+                        .attr('href', iconName);
                     item.choose();
-                })
-                .append('div')
-                .attr('class', 'label')
-                .text(function() {
-                  return '▶ ' + preset.name();
                 });
+
+            var label = button
+                .append('div')
+                .attr('class', 'label');
+
+            label
+                .call(svgIcon((textDirection === 'rtl' ? '#icon-backward' : '#icon-forward'), 'inline'))
+                .append('span')
+                .html(function() { return preset.name() + '&hellip;'; });
 
             box = selection.append('div')
                 .attr('class', 'subgrid col12')
@@ -176,6 +198,7 @@ export function PresetList(context) {
             sublist = box.append('div')
                 .attr('class', 'preset-list fillL3 cf fl');
         }
+
 
         item.choose = function() {
             if (!box || !sublist) return;
@@ -203,6 +226,7 @@ export function PresetList(context) {
         return item;
     }
 
+
     function PresetItem(preset) {
         function item(selection) {
             var wrap = selection.append('div')
@@ -210,7 +234,7 @@ export function PresetList(context) {
 
             wrap.append('button')
                 .attr('class', 'preset-list-button')
-                .call(PresetIcon()
+                .call(uiPresetIcon()
                     .geometry(context.geometry(id))
                     .preset(preset))
                 .on('click', item.choose)
@@ -226,10 +250,11 @@ export function PresetList(context) {
             context.presets().choose(preset);
 
             context.perform(
-                ChangePreset(id, currentPreset, preset),
-                t('operations.change_tags.annotation'));
+                actionChangePreset(id, currentPreset, preset),
+                t('operations.change_tags.annotation')
+            );
 
-            dispatch.choose(preset);
+            dispatch.call('choose', this, preset);
         };
 
         item.help = function() {
@@ -238,16 +263,18 @@ export function PresetList(context) {
         };
 
         item.preset = preset;
-        item.reference = TagReference(preset.reference(context.geometry(id)), context);
+        item.reference = uiTagReference(preset.reference(context.geometry(id)), context);
 
         return item;
     }
+
 
     presetList.autofocus = function(_) {
         if (!arguments.length) return autofocus;
         autofocus = _;
         return presetList;
     };
+
 
     presetList.entityID = function(_) {
         if (!arguments.length) return id;
@@ -256,11 +283,13 @@ export function PresetList(context) {
         return presetList;
     };
 
+
     presetList.preset = function(_) {
         if (!arguments.length) return currentPreset;
         currentPreset = _;
         return presetList;
     };
 
-    return d3.rebind(presetList, dispatch, 'on');
+
+    return utilRebind(presetList, dispatch, 'on');
 }

@@ -1,119 +1,34 @@
 /* global Mapillary:false */
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { Detect } from '../util/detect';
-import { Extent } from '../geo/index';
-import { Icon } from '../svg/index';
-import { qsString } from '../util/index';
-
 import rbush from 'rbush';
+import { utilRebind } from '../util/rebind';
+import { d3geoTile } from '../lib/d3.geo.tile';
+import { utilDetect } from '../util/detect';
+import { geoExtent } from '../geo/index';
+import { svgIcon } from '../svg/index';
+import { utilQsString } from '../util/index';
 
-var mapillary = {},
-    apibase = 'https://a.mapillary.com/v2/',
-    viewercss = 'https://npmcdn.com/mapillary-js@1.3.0/dist/mapillary-js.min.css',
-    viewerjs = 'https://npmcdn.com/mapillary-js@1.3.0/dist/mapillary-js.min.js',
+
+var apibase = 'https://a.mapillary.com/v3/',
+    viewercss = 'mapillary-js/mapillary.min.css',
+    viewerjs = 'mapillary-js/mapillary.min.js',
     clientId = 'NzNRM2otQkR2SHJzaXJmNmdQWVQ0dzo1ZWYyMmYwNjdmNDdlNmVi',
     maxResults = 1000,
-    maxPages = 10,
     tileZoom = 14,
-    dispatch = d3.dispatch('loadedImages', 'loadedSigns');
+    dispatch = d3.dispatch('loadedImages', 'loadedSigns'),
+    mapillaryCache,
+    mapillaryClicks,
+    mapillaryImage,
+    mapillarySignDefs,
+    mapillarySignSprite,
+    mapillaryViewer;
 
-function loadSignStyles(context) {
-    d3.select('head').selectAll('#traffico')
-        .data([0])
-        .enter()
-        .append('link')
-        .attr('id', 'traffico')
-        .attr('rel', 'stylesheet')
-        .attr('href', context.asset('traffico/stylesheets/traffico.css'));
-}
-
-function loadSignDefs(context) {
-    if (mapillary.sign_defs) return;
-    mapillary.sign_defs = {};
-
-    _.each(['au', 'br', 'ca', 'de', 'us'], function(region) {
-        d3.json(context.asset('traffico/string-maps/' + region + '-map.json'), function(err, data) {
-            if (err) return;
-            if (region === 'de') region = 'eu';
-            mapillary.sign_defs[region] = data;
-        });
-    });
-}
-
-function loadViewer() {
-    // mapillary-wrap
-    var wrap = d3.select('#content').selectAll('.mapillary-wrap')
-        .data([0]);
-
-    var enter = wrap.enter().append('div')
-        .attr('class', 'mapillary-wrap')
-        .classed('al', true)       // 'al'=left,  'ar'=right
-        .classed('hidden', true);
-
-    enter.append('button')
-        .attr('class', 'thumb-hide')
-        .on('click', function () { mapillary.hideViewer(); })
-        .append('div')
-        .call(Icon('#icon-close'));
-
-    enter.append('div')
-        .attr('id', 'mly')
-        .attr('class', 'mly-wrapper')
-        .classed('active', false);
-
-    // mapillary-viewercss
-    d3.select('head').selectAll('#mapillary-viewercss')
-        .data([0])
-        .enter()
-        .append('link')
-        .attr('id', 'mapillary-viewercss')
-        .attr('rel', 'stylesheet')
-        .attr('href', viewercss);
-
-    // mapillary-viewerjs
-    d3.select('head').selectAll('#mapillary-viewerjs')
-        .data([0])
-        .enter()
-        .append('script')
-        .attr('id', 'mapillary-viewerjs')
-        .attr('src', viewerjs);
-}
-
-function initViewer(imageKey, context) {
-
-    function nodeChanged(d) {
-        var clicks = mapillary.clicks;
-        var index = clicks.indexOf(d.key);
-        if (index > -1) {    // nodechange initiated from clicking on a marker..
-            clicks.splice(index, 1);
-        } else {             // nodechange initiated from the Mapillary viewer controls..
-            var loc = d.apiNavImIm ? [d.apiNavImIm.lon, d.apiNavImIm.lat] : [d.latLon.lon, d.latLon.lat];
-            context.map().centerEase(loc);
-            mapillary.setSelectedImage(d.key, false);
-        }
-    }
-
-    if (Mapillary && imageKey) {
-        var opts = {
-            baseImageSize: 320,
-            cover: false,
-            cache: true,
-            debug: false,
-            imagePlane: true,
-            loading: true,
-            sequence: true
-        };
-
-        var viewer = new Mapillary.Viewer('mly', clientId, imageKey, opts);
-        viewer.on('nodechanged', nodeChanged);
-        viewer.on('loadingchanged', mapillary.setViewerLoading);
-        mapillary.viewer = viewer;
-    }
-}
 
 function abortRequest(i) {
     i.abort();
 }
+
 
 function nearNullIsland(x, y, z) {
     if (z >= 7) {
@@ -126,7 +41,18 @@ function nearNullIsland(x, y, z) {
     return false;
 }
 
-function getTiles(projection, dimensions) {
+
+function maxPageAtZoom(z) {
+    if (z < 15)   return 2;
+    if (z === 15) return 5;
+    if (z === 16) return 10;
+    if (z === 17) return 20;
+    if (z === 18) return 40;
+    if (z > 18)   return 80;
+}
+
+
+function getTiles(projection) {
     var s = projection.scale() * 2 * Math.PI,
         z = Math.max(Math.log(s) / Math.log(2) - 8, 0),
         ts = 256 * Math.pow(2, z - tileZoom),
@@ -134,10 +60,10 @@ function getTiles(projection, dimensions) {
             s / 2 - projection.translate()[0],
             s / 2 - projection.translate()[1]];
 
-    return d3.geo.tile()
+    return d3geoTile()
         .scaleExtent([tileZoom, tileZoom])
         .scale(s)
-        .size(dimensions)
+        .size(projection.clipExtent()[1])
         .translate(projection.translate())()
         .map(function(tile) {
             var x = tile[0] * ts - origin[0],
@@ -145,17 +71,22 @@ function getTiles(projection, dimensions) {
 
             return {
                 id: tile.toString(),
-                extent: Extent(
+                xyz: tile,
+                extent: geoExtent(
                     projection.invert([x, y + ts]),
-                    projection.invert([x + ts, y]))
+                    projection.invert([x + ts, y])
+                )
             };
         });
 }
 
-function loadTiles(which, url, projection, dimensions) {
-    var tiles = getTiles(projection, dimensions).filter(function(t) {
-          var xyz = t.id.split(',');
-          return !nearNullIsland(xyz[0], xyz[1], xyz[2]);
+
+function loadTiles(which, url, projection) {
+    var s = projection.scale() * 2 * Math.PI,
+        currZoom = Math.floor(Math.max(Math.log(s) / Math.log(2) - 8, 0));
+
+    var tiles = getTiles(projection).filter(function(t) {
+            return !nearNullIsland(t.xyz[0], t.xyz[1], t.xyz[2]);
         });
 
     _.filter(which.inflight, function(v, k) {
@@ -165,60 +96,93 @@ function loadTiles(which, url, projection, dimensions) {
     }).map(abortRequest);
 
     tiles.forEach(function(tile) {
-        loadTilePage(which, url, tile, 0);
+        loadNextTilePage(which, currZoom, url, tile);
     });
 }
 
-function loadTilePage(which, url, tile, page) {
-    var cache = mapillary.cache[which],
-        id = tile.id + ',' + String(page),
-        rect = tile.extent.rectangle();
 
+function loadNextTilePage(which, currZoom, url, tile) {
+    var cache = mapillaryCache[which],
+        rect = tile.extent.rectangle(),
+        maxPages = maxPageAtZoom(currZoom),
+        nextPage = cache.nextPage[tile.id] || 0,
+        nextURL = cache.nextURL[tile.id] || url +
+            utilQsString({
+                per_page: maxResults,
+                page: nextPage,
+                client_id: clientId,
+                bbox: [rect[0], rect[1], rect[2], rect[3]].join(','),
+            });
+
+    if (nextPage > maxPages) return;
+
+    var id = tile.id + ',' + String(nextPage);
     if (cache.loaded[id] || cache.inflight[id]) return;
+    cache.inflight[id] = d3.request(nextURL)
+        .mimeType('application/json')
+        .response(function(xhr) {
+            var linkHeader = xhr.getResponseHeader('Link');
+            if (linkHeader) {
+                var pagination = parsePagination(xhr.getResponseHeader('Link'));
+                if (pagination.next) {
+                    cache.nextURL[tile.id] = pagination.next;
+                }
+            }
 
-    cache.inflight[id] = d3.json(url +
-        qsString({
-            geojson: 'true',
-            limit: maxResults,
-            page: page,
-            client_id: clientId,
-            min_lon: rect[0],
-            min_lat: rect[1],
-            max_lon: rect[2],
-            max_lat: rect[3]
-        }), function(err, data) {
+            return JSON.parse(xhr.responseText); })
+        .get(function(err, data) {
             cache.loaded[id] = true;
             delete cache.inflight[id];
             if (err || !data.features || !data.features.length) return;
 
             var features = [],
-                nextPage = page + 1,
                 feature, loc, d;
 
             for (var i = 0; i < data.features.length; i++) {
                 feature = data.features[i];
                 loc = feature.geometry.coordinates;
                 d = { key: feature.properties.key, loc: loc };
-                if (which === 'images') d.ca = feature.properties.ca;
-                if (which === 'signs') d.signs = feature.properties.rects;
+                if (which === 'images') d = { ca: feature.properties.ca, key: feature.properties.key, loc: loc };
+                if (which === 'signs') d = { key: feature.properties.detections[0].image_key, loc: loc, value: feature.properties.value };
 
                 features.push({minX: loc[0], minY: loc[1], maxX: loc[0], maxY: loc[1], data: d});
             }
 
             cache.rtree.load(features);
 
-            if (which === 'images') dispatch.loadedImages();
-            if (which === 'signs') dispatch.loadedSigns();
-
-            if (data.features.length === maxResults && nextPage < maxPages) {
-                loadTilePage(which, url, tile, nextPage);
+            if (which === 'images') dispatch.call('loadedImages');
+            if (which === 'signs') dispatch.call('loadedSigns');
+            if (data.features.length === maxResults) {  // more pages to load
+                cache.nextPage[tile.id] = nextPage + 1;
+                loadNextTilePage(which, currZoom, url, tile);
+            } else {
+                cache.nextPage[tile.id] = Infinity;     // no more pages to load
             }
-        }
-    );
+        });
 }
 
+// extract links to pages of API results
+function parsePagination(links) {
+    return links.split(',').map(function(rel) {
+        var elements = rel.split(';');
+        if (elements.length === 2) {
+            return [
+                /<(.+)>/.exec(elements[0])[1],
+                /rel="(.+)"/.exec(elements[1])[1]
+                ];
+        } else {
+            return ['',''];
+        }
+    }).reduce(function(pagination, val) {
+        pagination[val[1]] = val[0];
+        return pagination;
+    }, {});
+}
+
+
 // partition viewport into `psize` x `psize` regions
-function partitionViewport(psize, projection, dimensions) {
+function partitionViewport(psize, projection) {
+    var dimensions = projection.clipExtent()[1];
     psize = psize || 16;
     var cols = d3.range(0, dimensions[0], psize),
         rows = d3.range(0, dimensions[1], psize),
@@ -229,18 +193,19 @@ function partitionViewport(psize, projection, dimensions) {
             var min = [x, y + psize],
                 max = [x + psize, y];
             partitions.push(
-                Extent(projection.invert(min), projection.invert(max)));
+                geoExtent(projection.invert(min), projection.invert(max)));
         });
     });
 
     return partitions;
 }
 
+
 // no more than `limit` results per partition.
-function searchLimited(psize, limit, projection, dimensions, rtree) {
+function searchLimited(psize, limit, projection, rtree) {
     limit = limit || 3;
 
-    var partitions = partitionViewport(psize, projection, dimensions);
+    var partitions = partitionViewport(psize, projection);
     return _.flatten(_.compact(_.map(partitions, function(extent) {
         return rtree.search(extent.bbox())
             .slice(0, limit)
@@ -248,65 +213,154 @@ function searchLimited(psize, limit, projection, dimensions, rtree) {
     })));
 }
 
-// this function is only used by test cases
-export function getMapillary() {
-    return mapillary;
-}
 
-export function init() {
 
-    mapillary.loadImages = function(projection, dimensions) {
-        var url = apibase + 'search/im/geojson?';
-        loadTiles('images', url, projection, dimensions);
-    };
+export default {
 
-    mapillary.loadSigns = function(context, projection, dimensions) {
-        var url = apibase + 'search/im/geojson/or?';
-        loadSignStyles(context);
-        loadSignDefs(context);
-        loadTiles('signs', url, projection, dimensions);
-    };
+    init: function() {
+        if (!mapillaryCache) {
+            this.reset();
+        }
 
-    mapillary.loadViewer = function() {
-        loadViewer();
-    };
+        this.event = utilRebind(this, dispatch, 'on');
+    },
 
-    mapillary.images = function(projection, dimensions) {
+    reset: function() {
+        var cache = mapillaryCache;
+
+        if (cache) {
+            if (cache.images && cache.images.inflight) {
+                _.forEach(cache.images.inflight, abortRequest);
+            }
+            if (cache.signs && cache.signs.inflight) {
+                _.forEach(cache.signs.inflight, abortRequest);
+            }
+        }
+
+        mapillaryCache = {
+            images: { inflight: {}, loaded: {}, nextPage: {}, nextURL: {}, rtree: rbush() },
+            signs:  { inflight: {}, loaded: {}, nextPage: {}, nextURL: {}, rtree: rbush() }
+        };
+
+        mapillaryImage = null;
+        mapillaryClicks = [];
+    },
+
+
+    images: function(projection) {
         var psize = 16, limit = 3;
-        return searchLimited(psize, limit, projection, dimensions, mapillary.cache.images.rtree);
-    };
+        return searchLimited(psize, limit, projection, mapillaryCache.images.rtree);
+    },
 
-    mapillary.signs = function(projection, dimensions) {
+
+    signs: function(projection) {
         var psize = 32, limit = 3;
-        return searchLimited(psize, limit, projection, dimensions, mapillary.cache.signs.rtree);
-    };
+        return searchLimited(psize, limit, projection, mapillaryCache.signs.rtree);
+    },
 
-    mapillary.signsSupported = function() {
-        var detected = Detect();
-        return (!(detected.ie || detected.browser.toLowerCase() === 'safari'));
-    };
 
-    mapillary.signHTML = function(d) {
-        if (!mapillary.sign_defs) return;
+    signsSupported: function() {
+        var detected = utilDetect();
+        if (detected.ie) return false;
+        if ((detected.browser.toLowerCase() === 'safari') && (parseFloat(detected.version) < 10)) return false;
+        return true;
+    },
 
-        var detectionPackage = d.signs[0].package,
-            type = d.signs[0].type,
-            country = detectionPackage.split('_')[1];
 
-        return mapillary.sign_defs[country][type];
-    };
+    signHTML: function(d) {
+        if (!mapillarySignDefs || !mapillarySignSprite) return;
+        var position = mapillarySignDefs[d.value];
+        if (!position) return '<div></div>';
+        var iconStyle = [
+            'background-image:url(' + mapillarySignSprite + ')',
+            'background-repeat:no-repeat',
+            'height:' + position.height + 'px',
+            'width:' + position.width + 'px',
+            'background-position-x:-' + position.x + 'px',
+            'background-position-y:-' + position.y + 'px',
+        ];
 
-    mapillary.showViewer = function() {
+        return '<div style="' + iconStyle.join(';') +'"></div>';
+    },
+
+
+    loadImages: function(projection) {
+        var url = apibase + 'images?';
+        loadTiles('images', url, projection);
+    },
+
+
+    loadSigns: function(context, projection) {
+        var url = apibase + 'objects?';
+        loadTiles('signs', url, projection);
+
+        // load traffic sign defs
+        if (!mapillarySignDefs) {
+            mapillarySignSprite = context.asset('img/traffic-signs/traffic-signs.png');
+            mapillarySignDefs = {};
+            d3.json(context.asset('img/traffic-signs/traffic-signs.json'), function(err, data) {
+                if (err) return;
+                mapillarySignDefs = data;
+            });
+        }
+    },
+
+
+    loadViewer: function(context) {
+        var that = this;
+        var wrap = d3.select('#content').selectAll('.mapillary-wrap')
+            .data([0]);
+
+        var enter = wrap.enter()
+            .append('div')
+            .attr('class', 'mapillary-wrap')
+            .classed('al', true)       // 'al'=left,  'ar'=right
+            .classed('hidden', true);
+
+        enter
+            .append('button')
+            .attr('class', 'thumb-hide')
+            .on('click', function () { that.hideViewer(); })
+            .append('div')
+            .call(svgIcon('#icon-close'));
+
+        enter
+            .append('div')
+            .attr('id', 'mly')
+            .attr('class', 'mly-wrapper')
+            .classed('active', false);
+
+        // load mapillary-viewercss
+        d3.select('head').selectAll('#mapillary-viewercss')
+            .data([0])
+            .enter()
+            .append('link')
+            .attr('id', 'mapillary-viewercss')
+            .attr('rel', 'stylesheet')
+            .attr('href', context.asset(viewercss));
+
+        // load mapillary-viewerjs
+        d3.select('head').selectAll('#mapillary-viewerjs')
+            .data([0])
+            .enter()
+            .append('script')
+            .attr('id', 'mapillary-viewerjs')
+            .attr('src', context.asset(viewerjs));
+    },
+
+
+    showViewer: function() {
         d3.select('#content')
             .selectAll('.mapillary-wrap')
             .classed('hidden', false)
             .selectAll('.mly-wrapper')
             .classed('active', true);
 
-        return mapillary;
-    };
+        return this;
+    },
 
-    mapillary.hideViewer = function() {
+
+    hideViewer: function() {
         d3.select('#content')
             .selectAll('.mapillary-wrap')
             .classed('hidden', true)
@@ -316,94 +370,82 @@ export function init() {
         d3.selectAll('.layer-mapillary-images .viewfield-group, .layer-mapillary-signs .icon-sign')
             .classed('selected', false);
 
-        mapillary.image = null;
+        mapillaryImage = null;
+        return this;
+    },
 
-        return mapillary;
-    };
 
-    mapillary.setViewerLoading = function(loading) {
-        var canvas = d3.select('#content')
-            .selectAll('.mly-wrapper canvas');
+    parsePagination: parsePagination,
 
-        if (canvas.empty()) return;   // viewer not loaded yet
 
-        var cover = d3.select('#content')
-            .selectAll('.mly-wrapper .Cover');
-
-        cover.classed('CoverDone', !loading);
-
-        var button = cover.selectAll('.CoverButton')
-            .data(loading ? [0] : []);
-
-        button.enter()
-            .append('div')
-            .attr('class', 'CoverButton')
-            .append('div')
-            .attr('class', 'uil-ripple-css')
-            .append('div');
-
-        button.exit()
-            .remove();
-
-        return mapillary;
-    };
-
-    mapillary.updateViewer = function(imageKey, context) {
-        if (!mapillary) return;
+    updateViewer: function(imageKey, context) {
         if (!imageKey) return;
 
-        if (!mapillary.viewer) {
-            initViewer(imageKey, context);
+        if (!mapillaryViewer) {
+            this.initViewer(imageKey, context);
         } else {
-            mapillary.viewer.moveToKey(imageKey);
+            mapillaryViewer.moveToKey(imageKey);
         }
 
-        return mapillary;
-    };
+        return this;
+    },
 
-    mapillary.getSelectedImage = function() {
-        if (!mapillary) return null;
-        return mapillary.image;
-    };
 
-    mapillary.setSelectedImage = function(imageKey, fromClick) {
-        if (!mapillary) return null;
+    initViewer: function(imageKey, context) {
+        var that = this;
+        if (Mapillary && imageKey) {
+            var opts = {
+                baseImageSize: 320,
+                component: {
+                    cover: false,
+                    keyboard: false
+                }
+            };
 
-        mapillary.image = imageKey;
+            mapillaryViewer = new Mapillary.Viewer('mly', clientId, imageKey, opts);
+            mapillaryViewer.on('nodechanged', nodeChanged);
+        }
+
+        function nodeChanged(node) {
+            var clicks = mapillaryClicks;
+            var index = clicks.indexOf(node.key);
+            if (index > -1) {    // nodechange initiated from clicking on a marker..
+                clicks.splice(index, 1);
+            } else {             // nodechange initiated from the Mapillary viewer controls..
+                var loc = node.computedLatLon ? [node.computedLatLon.lon, node.computedLatLon.lat] : [node.latLon.lon, node.latLon.lat];
+                context.map().centerEase(loc);
+                that.selectedImage(node.key, false);
+            }
+        }
+    },
+
+
+    selectedImage: function(imageKey, fromClick) {
+        if (!arguments.length) return mapillaryImage;
+
+        mapillaryImage = imageKey;
         if (fromClick) {
-            mapillary.clicks.push(imageKey);
+            mapillaryClicks.push(imageKey);
         }
 
         d3.selectAll('.layer-mapillary-images .viewfield-group, .layer-mapillary-signs .icon-sign')
             .classed('selected', function(d) { return d.key === imageKey; });
 
-        return mapillary;
-    };
+        return this;
+    },
 
-    mapillary.reset = function() {
-        var cache = mapillary.cache;
 
-        if (cache) {
-            _.forEach(cache.images.inflight, abortRequest);
-            _.forEach(cache.signs.inflight, abortRequest);
-        }
+    cache: function(_) {
+        if (!arguments.length) return mapillaryCache;
+        mapillaryCache = _;
+        return this;
+    },
 
-        mapillary.cache = {
-            images: { inflight: {}, loaded: {}, rtree: rbush() },
-            signs:  { inflight: {}, loaded: {}, rtree: rbush() }
-        };
 
-        mapillary.image = null;
-        mapillary.clicks = [];
-
-        return mapillary;
-    };
-
-    if (!mapillary.cache) {
-        mapillary.reset();
+    signDefs: function(_) {
+        if (!arguments.length) return mapillarySignDefs;
+        mapillarySignDefs = _;
+        return this;
     }
 
-    mapillary.event = d3.rebind(mapillary, dispatch, 'on');
-
-    return mapillary;
-}
+};

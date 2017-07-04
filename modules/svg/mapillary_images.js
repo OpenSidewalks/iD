@@ -1,35 +1,41 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { PointTransform } from './point_transform';
+import { svgPointTransform } from './point_transform';
+import { services } from '../services/index';
 
-export function MapillaryImages(projection, context, dispatch) {
-    var debouncedRedraw = _.debounce(function () { dispatch.change(); }, 1000),
+
+export function svgMapillaryImages(projection, context, dispatch) {
+    var throttledRedraw = _.throttle(function () { dispatch.call('change'); }, 1000),
         minZoom = 12,
+        minViewfieldZoom = 17,
         layer = d3.select(null),
         _mapillary;
 
 
     function init() {
-        if (MapillaryImages.initialized) return;  // run once
-        MapillaryImages.enabled = false;
-        MapillaryImages.initialized = true;
+        if (svgMapillaryImages.initialized) return;  // run once
+        svgMapillaryImages.enabled = false;
+        svgMapillaryImages.initialized = true;
     }
 
+
     function getMapillary() {
-        if (iD.services.mapillary && !_mapillary) {
-            _mapillary = iD.services.mapillary.init();
-            _mapillary.event.on('loadedImages', debouncedRedraw);
-        } else if (!iD.services.mapillary && _mapillary) {
+        if (services.mapillary && !_mapillary) {
+            _mapillary = services.mapillary;
+            _mapillary.event.on('loadedImages', throttledRedraw);
+        } else if (!services.mapillary && _mapillary) {
             _mapillary = null;
         }
 
         return _mapillary;
     }
 
+
     function showLayer() {
         var mapillary = getMapillary();
         if (!mapillary) return;
 
-        mapillary.loadViewer();
+        mapillary.loadViewer(context);
         editOn();
 
         layer
@@ -37,8 +43,9 @@ export function MapillaryImages(projection, context, dispatch) {
             .transition()
             .duration(500)
             .style('opacity', 1)
-            .each('end', debouncedRedraw);
+            .on('end', function () { dispatch.call('change'); });
     }
+
 
     function hideLayer() {
         var mapillary = getMapillary();
@@ -46,23 +53,26 @@ export function MapillaryImages(projection, context, dispatch) {
             mapillary.hideViewer();
         }
 
-        debouncedRedraw.cancel();
+        throttledRedraw.cancel();
 
         layer
             .transition()
             .duration(500)
             .style('opacity', 0)
-            .each('end', editOff);
+            .on('end', editOff);
     }
+
 
     function editOn() {
         layer.style('display', 'block');
     }
 
+
     function editOff() {
         layer.selectAll('.viewfield-group').remove();
         layer.style('display', 'none');
     }
+
 
     function click(d) {
         var mapillary = getMapillary();
@@ -71,98 +81,108 @@ export function MapillaryImages(projection, context, dispatch) {
         context.map().centerEase(d.loc);
 
         mapillary
-            .setSelectedImage(d.key, true)
+            .selectedImage(d.key, true)
             .updateViewer(d.key, context)
             .showViewer();
     }
 
+
     function transform(d) {
-        var t = PointTransform(projection)(d);
+        var t = svgPointTransform(projection)(d);
         if (d.ca) t += ' rotate(' + Math.floor(d.ca) + ',0,0)';
         return t;
     }
 
+
     function update() {
         var mapillary = getMapillary(),
-            data = (mapillary ? mapillary.images(projection, layer.dimensions()) : []),
-            imageKey = mapillary ? mapillary.getSelectedImage() : null;
+            data = (mapillary ? mapillary.images(projection) : []),
+            imageKey = mapillary ? mapillary.selectedImage() : null;
 
         var markers = layer.selectAll('.viewfield-group')
             .data(data, function(d) { return d.key; });
 
-        // Enter
+        markers.exit()
+            .remove();
+
         var enter = markers.enter()
             .append('g')
             .attr('class', 'viewfield-group')
             .classed('selected', function(d) { return d.key === imageKey; })
             .on('click', click);
 
-        enter.append('path')
+        markers = markers
+            .merge(enter)
+            .attr('transform', transform);
+
+
+       var viewfields = markers.selectAll('.viewfield')
+            .data(~~context.map().zoom() >= minViewfieldZoom ? [0] : []);
+
+        viewfields.exit()
+            .remove();
+
+        viewfields.enter()
+            .append('path')
             .attr('class', 'viewfield')
             .attr('transform', 'scale(1.5,1.5),translate(-8, -13)')
             .attr('d', 'M 6,9 C 8,8.4 8,8.4 10,9 L 16,-2 C 12,-5 4,-5 0,-2 z');
 
-        enter.append('circle')
+        markers.selectAll('circle')
+            .data([0])
+            .enter()
+            .append('circle')
             .attr('dx', '0')
             .attr('dy', '0')
             .attr('r', '6');
-
-        // Exit
-        markers.exit()
-            .remove();
-
-        // Update
-        markers
-            .attr('transform', transform);
     }
 
+
     function drawImages(selection) {
-        var enabled = MapillaryImages.enabled,
+        var enabled = svgMapillaryImages.enabled,
             mapillary = getMapillary();
 
         layer = selection.selectAll('.layer-mapillary-images')
             .data(mapillary ? [0] : []);
 
-        layer.enter()
-            .append('g')
-            .attr('class', 'layer-mapillary-images')
-            .style('display', enabled ? 'block' : 'none');
-
         layer.exit()
             .remove();
+
+        layer = layer.enter()
+            .append('g')
+            .attr('class', 'layer-mapillary-images')
+            .style('display', enabled ? 'block' : 'none')
+            .merge(layer);
 
         if (enabled) {
             if (mapillary && ~~context.map().zoom() >= minZoom) {
                 editOn();
                 update();
-                mapillary.loadImages(projection, layer.dimensions());
+                mapillary.loadImages(projection);
             } else {
                 editOff();
             }
         }
     }
 
+
     drawImages.enabled = function(_) {
-        if (!arguments.length) return MapillaryImages.enabled;
-        MapillaryImages.enabled = _;
-        if (MapillaryImages.enabled) {
+        if (!arguments.length) return svgMapillaryImages.enabled;
+        svgMapillaryImages.enabled = _;
+        if (svgMapillaryImages.enabled) {
             showLayer();
         } else {
             hideLayer();
         }
-        dispatch.change();
+        dispatch.call('change');
         return this;
     };
+
 
     drawImages.supported = function() {
         return !!getMapillary();
     };
 
-    drawImages.dimensions = function(_) {
-        if (!arguments.length) return layer.dimensions();
-        layer.dimensions(_);
-        return this;
-    };
 
     init();
     return drawImages;

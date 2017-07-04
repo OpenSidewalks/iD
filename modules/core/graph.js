@@ -1,10 +1,12 @@
 import _ from 'lodash';
-import { getPrototypeOf } from '../util/index';
+import { debug } from '../index';
+import { utilGetPrototypeOf } from '../util/index';
 
-export function Graph(other, mutable) {
-    if (!(this instanceof Graph)) return new Graph(other, mutable);
 
-    if (other instanceof Graph) {
+export function coreGraph(other, mutable) {
+    if (!(this instanceof coreGraph)) return new coreGraph(other, mutable);
+
+    if (other instanceof coreGraph) {
         var base = other.base();
         this.entities = _.assign(Object.create(base.entities), other.entities);
         this._parentWays = _.assign(Object.create(base.parentWays), other._parentWays);
@@ -22,18 +24,28 @@ export function Graph(other, mutable) {
     this.frozen = !mutable;
 }
 
-Graph.prototype = {
+
+coreGraph.prototype = {
+
     hasEntity: function(id) {
         return this.entities[id];
     },
 
+
     entity: function(id) {
         var entity = this.entities[id];
+
+        //https://github.com/openstreetmap/iD/issues/3973#issuecomment-307052376
+        if (!entity) {
+            entity = this.entities.__proto__[id];  // eslint-disable-line no-proto
+        }
+
         if (!entity) {
             throw new Error('entity ' + id + ' not found');
         }
         return entity;
     },
+
 
     transient: function(entity, key, fn) {
         var id = entity.id,
@@ -49,6 +61,7 @@ Graph.prototype = {
         return transients[key];
     },
 
+
     parentWays: function(entity) {
         var parents = this._parentWays[entity.id],
             result = [];
@@ -61,15 +74,18 @@ Graph.prototype = {
         return result;
     },
 
+
     isPoi: function(entity) {
         var parentWays = this._parentWays[entity.id];
         return !parentWays || parentWays.length === 0;
     },
 
+
     isShared: function(entity) {
         var parentWays = this._parentWays[entity.id];
         return parentWays && parentWays.length > 1;
     },
+
 
     parentRelations: function(entity) {
         var parents = this._parentRels[entity.id],
@@ -83,6 +99,7 @@ Graph.prototype = {
         return result;
     },
 
+
     childNodes: function(entity) {
         if (this._childNodes[entity.id]) return this._childNodes[entity.id];
         if (!entity.nodes) return [];
@@ -92,19 +109,21 @@ Graph.prototype = {
             nodes[i] = this.entity(entity.nodes[i]);
         }
 
-        if (iD.debug) Object.freeze(nodes);
+        if (debug) Object.freeze(nodes);
 
         this._childNodes[entity.id] = nodes;
         return this._childNodes[entity.id];
     },
 
+
     base: function() {
         return {
-            'entities': getPrototypeOf(this.entities),
-            'parentWays': getPrototypeOf(this._parentWays),
-            'parentRels': getPrototypeOf(this._parentRels)
+            'entities': utilGetPrototypeOf(this.entities),
+            'parentWays': utilGetPrototypeOf(this._parentWays),
+            'parentRels': utilGetPrototypeOf(this._parentRels)
         };
     },
+
 
     // Unlike other graph methods, rebase mutates in place. This is because it
     // is used only during the history operation that merges newly downloaded
@@ -143,6 +162,7 @@ Graph.prototype = {
         }
     },
 
+
     _updateRebased: function() {
         var base = this.base(),
             i, k, child, id, keys;
@@ -178,6 +198,7 @@ Graph.prototype = {
         // this._childNodes is not updated, under the assumption that
         // ways are always downloaded with their child nodes.
     },
+
 
     // Updates calculated properties (parentWays, parentRels) for the specified change
     _updateCalculated: function(oldentity, entity, parentWays, parentRels) {
@@ -235,6 +256,7 @@ Graph.prototype = {
         }
     },
 
+
     replace: function(entity) {
         if (this.entities[entity.id] === entity)
             return this;
@@ -245,12 +267,14 @@ Graph.prototype = {
         });
     },
 
+
     remove: function(entity) {
         return this.update(function() {
             this._updateCalculated(entity, undefined);
             this.entities[entity.id] = undefined;
         });
     },
+
 
     revert: function(id) {
         var baseEntity = this.base().entities[id],
@@ -265,8 +289,9 @@ Graph.prototype = {
         });
     },
 
+
     update: function() {
-        var graph = this.frozen ? Graph(this, true) : this;
+        var graph = this.frozen ? coreGraph(this, true) : this;
 
         for (var i = 0; i < arguments.length; i++) {
             arguments[i].call(graph, graph);
@@ -276,6 +301,7 @@ Graph.prototype = {
 
         return graph;
     },
+
 
     // Obliterates any existing entities
     load: function(entities) {

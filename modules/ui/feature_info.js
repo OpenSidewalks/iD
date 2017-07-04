@@ -1,7 +1,11 @@
-import { t } from '../util/locale';
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { tooltipHtml } from './tooltipHtml';
-export function FeatureInfo(context) {
+import { t } from '../util/locale';
+import { uiTooltipHtml } from './tooltipHtml';
+import { tooltip } from '../util/tooltip';
+
+
+export function uiFeatureInfo(context) {
     function update(selection) {
         var features = context.features(),
             stats = features.stats(),
@@ -16,20 +20,20 @@ export function FeatureInfo(context) {
         selection.html('');
 
         if (hiddenList.length) {
-            var tooltip = bootstrap.tooltip()
+            var tooltipBehavior = tooltip()
                     .placement('top')
                     .html(true)
                     .title(function() {
-                        return tooltipHtml(hiddenList.join('<br/>'));
+                        return uiTooltipHtml(hiddenList.join('<br/>'));
                     });
 
             var warning = selection.append('a')
                 .attr('href', '#')
                 .attr('tabindex', -1)
                 .html(t('feature_info.hidden_warning', { count: count }))
-                .call(tooltip)
+                .call(tooltipBehavior)
                 .on('click', function() {
-                    tooltip.hide(warning);
+                    tooltipBehavior.hide(warning);
                     // open map data panel?
                     d3.event.preventDefault();
                 });
@@ -38,6 +42,7 @@ export function FeatureInfo(context) {
         selection
             .classed('hide', !hiddenList.length);
     }
+
 
     return function(selection) {
         update(selection);

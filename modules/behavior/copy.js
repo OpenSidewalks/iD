@@ -1,13 +1,19 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { cmd } from '../ui/index';
-export function Copy(context) {
-    var keybinding = d3.keybinding('copy');
+import { d3keybinding } from '../lib/d3.keybinding.js';
+import { uiCmd } from '../ui/index';
+
+
+export function behaviorCopy(context) {
+    var keybinding = d3keybinding('copy');
+
 
     function groupEntities(ids, graph) {
         var entities = ids.map(function (id) { return graph.entity(id); });
         return _.extend({relation: [], way: [], node: []},
             _.groupBy(entities, function(entity) { return entity.type; }));
     }
+
 
     function getDescendants(id, graph, descendants) {
         var entity = graph.entity(id),
@@ -33,9 +39,9 @@ export function Copy(context) {
         return descendants;
     }
 
+
     function doCopy() {
         d3.event.preventDefault();
-        if (context.inIntro()) return;
 
         var graph = context.graph(),
             selected = groupEntities(context.selectedIDs(), graph),
@@ -67,15 +73,18 @@ export function Copy(context) {
         context.copyIDs(canCopy);
     }
 
+
     function copy() {
-        keybinding.on(cmd('⌘C'), doCopy);
+        keybinding.on(uiCmd('⌘C'), doCopy);
         d3.select(document).call(keybinding);
         return copy;
     }
 
+
     copy.off = function() {
         d3.select(document).call(keybinding.off);
     };
+
 
     return copy;
 }

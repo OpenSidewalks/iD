@@ -1,30 +1,38 @@
-import { t } from '../util/locale';
 import _ from 'lodash';
-export function Preset(id, preset, fields) {
+import { t } from '../util/locale';
+import { areaKeys } from '../core/context';
+
+
+export function presetPreset(id, preset, fields) {
     preset = _.clone(preset);
 
     preset.id = id;
     preset.fields = (preset.fields || []).map(getFields);
     preset.geometry = (preset.geometry || []);
 
+
     function getFields(f) {
         return fields[f];
     }
+
 
     preset.matchGeometry = function(geometry) {
         return preset.geometry.indexOf(geometry) >= 0;
     };
 
-    var matchScore = preset.matchScore || 1;
+
+    preset.originalScore = preset.matchScore || 1;
+
+
     preset.matchScore = function(entity) {
         var tags = preset.tags,
             score = 0;
 
         for (var t in tags) {
             if (entity.tags[t] === tags[t]) {
-                score += matchScore;
+                score += preset.originalScore;
             } else if (tags[t] === '*' && t in entity.tags) {
-                score += matchScore / 2;
+                score += preset.originalScore / 2;
             } else {
                 return -1;
             }
@@ -33,9 +41,11 @@ export function Preset(id, preset, fields) {
         return score;
     };
 
+
     preset.t = function(scope, options) {
         return t('presets.presets.' + id + '.' + scope, options);
     };
+
 
     var name = preset.name || '';
     preset.name = function() {
@@ -47,27 +57,39 @@ export function Preset(id, preset, fields) {
         return preset.t('name', {'default': name});
     };
 
+
     preset.terms = function() {
         return preset.t('terms', {'default': ''}).toLowerCase().trim().split(/\s*,+\s*/);
     };
+
 
     preset.isFallback = function() {
         var tagCount = Object.keys(preset.tags).length;
         return tagCount === 0 || (tagCount === 1 && preset.tags.hasOwnProperty('area'));
     };
 
+
+    var reference = preset.reference || {};
     preset.reference = function(geometry) {
-        var key = Object.keys(preset.tags)[0],
-            value = preset.tags[key];
+        var key = reference.key || Object.keys(_.omit(preset.tags, 'name'))[0],
+            value = reference.value || preset.tags[key];
 
         if (geometry === 'relation' && key === 'type') {
-            return { rtype: value };
-        } else if (value === '*') {
+            if (value in preset.tags) {
+                key = value;
+                value = preset.tags[key];
+            } else {
+                return { rtype: value };
+            }
+        }
+
+        if (value === '*') {
             return { key: key };
         } else {
             return { key: key, value: value };
         }
     };
+
 
     var removeTags = preset.removeTags || preset.tags;
     preset.removeTags = function(tags, geometry) {
@@ -83,6 +105,7 @@ export function Preset(id, preset, fields) {
         delete tags.area;
         return tags;
     };
+
 
     var applyTags = preset.addTags || preset.tags;
     preset.applyTags = function(tags, geometry) {
@@ -106,7 +129,7 @@ export function Preset(id, preset, fields) {
             var needsAreaTag = true;
             if (preset.geometry.indexOf('line') === -1) {
                 for (k in applyTags) {
-                    if (k in iD.areaKeys) {
+                    if (k in areaKeys) {
                         needsAreaTag = false;
                         break;
                     }
@@ -126,6 +149,7 @@ export function Preset(id, preset, fields) {
 
         return tags;
     };
+
 
     return preset;
 }

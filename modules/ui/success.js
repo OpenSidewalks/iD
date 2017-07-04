@@ -1,46 +1,70 @@
+import * as d3 from 'd3';
 import { t } from '../util/locale';
-import { Icon } from '../svg/index';
-export function Success(context) {
+import { tooltip } from '../util/tooltip';
+import { svgIcon } from '../svg/index';
+import { utilRebind } from '../util/rebind';
+
+
+export function uiSuccess(context) {
     var dispatch = d3.dispatch('cancel'),
         changeset;
 
-    function success(selection) {
-        var message = (changeset.comment || t('success.edited_osm')).substring(0, 130) +
-            ' ' + context.connection().changesetURL(changeset.id);
 
-        var header = selection.append('div')
+    function success(selection) {
+        var header = selection
+            .append('div')
             .attr('class', 'header fillL');
 
-        header.append('button')
+        header
+            .append('button')
             .attr('class', 'fr')
-            .on('click', function() { dispatch.cancel(); })
-            .call(Icon('#icon-close'));
+            .on('click', function() { dispatch.call('cancel'); })
+            .call(svgIcon('#icon-close'));
 
-        header.append('h3')
+        header
+            .append('h3')
             .text(t('success.just_edited'));
 
-        var body = selection.append('div')
+        var body = selection
+            .append('div')
             .attr('class', 'body save-success fillL');
 
-        body.append('p')
+        body
+            .append('p')
             .html(t('success.help_html'));
 
-        body.append('a')
+        body
+            .append('a')
             .attr('class', 'details')
             .attr('target', '_blank')
             .attr('tabindex', -1)
-            .call(Icon('#icon-out-link', 'inline'))
+            .call(svgIcon('#icon-out-link', 'inline'))
             .attr('href', t('success.help_link_url'))
             .append('span')
             .text(t('success.help_link_text'));
 
         var changesetURL = context.connection().changesetURL(changeset.id);
 
-        body.append('a')
+
+        var viewOnOsm = body
+            .append('a')
             .attr('class', 'button col12 osm')
             .attr('target', '_blank')
-            .attr('href', changesetURL)
+            .attr('href', changesetURL);
+
+        viewOnOsm
+            .append('svg')
+            .attr('class', 'logo logo-osm')
+            .append('use')
+            .attr('xlink:href', '#logo-osm');
+
+        viewOnOsm
+            .append('div')
             .text(t('success.view_on_osm'));
+
+
+        var message = (changeset.tags.comment || t('success.edited_osm')).substring(0, 130) +
+            ' ' + context.connection().changesetURL(changeset.id);
 
         var sharing = {
             facebook: 'https://facebook.com/sharer/sharer.php?u=' + encodeURIComponent(changesetURL),
@@ -55,11 +79,12 @@ export function Success(context) {
             .attr('class', 'button social col4')
             .attr('target', '_blank')
             .attr('href', function(d) { return d.value; })
-            .call(bootstrap.tooltip()
+            .call(tooltip()
                 .title(function(d) { return t('success.' + d.key); })
                 .placement('bottom'))
-            .each(function(d) { d3.select(this).call(Icon('#logo-' + d.key, 'social')); });
+            .each(function(d) { d3.select(this).call(svgIcon('#logo-' + d.key, 'social')); });
     }
+
 
     success.changeset = function(_) {
         if (!arguments.length) return changeset;
@@ -67,5 +92,6 @@ export function Success(context) {
         return success;
     };
 
-    return d3.rebind(success, dispatch, 'on');
+
+    return utilRebind(success, dispatch, 'on');
 }

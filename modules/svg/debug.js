@@ -1,6 +1,13 @@
-import { polygonIntersectsPolygon } from '../geo/index';
+import * as d3 from 'd3';
+import { geoPolygonIntersectsPolygon } from '../geo/index';
+import {
+    data,
+    dataImperial,
+    dataDriveLeft
+} from '../../data/index';
 
-export function Debug(projection, context) {
+
+export function svgDebug(projection, context) {
 
     function multipolygons(imagery) {
         return imagery.map(function(data) {
@@ -11,13 +18,13 @@ export function Debug(projection, context) {
         });
     }
 
-    function drawDebug(surface) {
+    function drawDebug(selection) {
         var showsTile = context.getDebug('tile'),
             showsCollision = context.getDebug('collision'),
             showsImagery = context.getDebug('imagery'),
             showsImperial = context.getDebug('imperial'),
             showsDriveLeft = context.getDebug('driveLeft'),
-            path = d3.geo.path().projection(projection);
+            path = d3.geoPath(projection);
 
 
         var debugData = [];
@@ -42,84 +49,88 @@ export function Debug(projection, context) {
             .selectAll('.debug-legend')
             .data(debugData.length ? [0] : []);
 
-        legend.enter()
-            .append('div')
-            .attr('class', 'fillD debug-legend');
-
         legend.exit()
             .remove();
+
+        legend = legend.enter()
+            .append('div')
+            .attr('class', 'fillD debug-legend')
+            .merge(legend);
 
 
         var legendItems = legend.selectAll('.debug-legend-item')
             .data(debugData, function(d) { return d.label; });
+
+        legendItems.exit()
+            .remove();
 
         legendItems.enter()
             .append('span')
             .attr('class', function(d) { return 'debug-legend-item ' + d.class; })
             .text(function(d) { return d.label; });
 
-        legendItems.exit()
-            .remove();
 
-
-        var layer = surface.selectAll('.layer-debug')
+        var layer = selection.selectAll('.layer-debug')
             .data(showsImagery || showsImperial || showsDriveLeft ? [0] : []);
-
-        layer.enter()
-            .append('g')
-            .attr('class', 'layer-debug');
 
         layer.exit()
             .remove();
 
+        layer = layer.enter()
+            .append('g')
+            .attr('class', 'layer-debug')
+            .merge(layer);
+
 
         var extent = context.map().extent(),
-            availableImagery = showsImagery && multipolygons(iD.data.imagery.filter(function(source) {
+            dataImagery = data.imagery || [],
+            availableImagery = showsImagery && multipolygons(dataImagery.filter(function(source) {
                 if (!source.polygon) return false;
                 return source.polygon.some(function(polygon) {
-                    return polygonIntersectsPolygon(polygon, extent, true);
+                    return geoPolygonIntersectsPolygon(polygon, extent, true);
                 });
             }));
 
         var imagery = layer.selectAll('path.debug-imagery')
             .data(showsImagery ? availableImagery : []);
 
+        imagery.exit()
+            .remove();
+
         imagery.enter()
             .append('path')
             .attr('class', 'debug-imagery debug orange');
 
-        imagery.exit()
-            .remove();
-
 
         var imperial = layer
             .selectAll('path.debug-imperial')
-            .data(showsImperial ? [iD.data.imperial] : []);
+            .data(showsImperial ? [dataImperial] : []);
+
+        imperial.exit()
+            .remove();
 
         imperial.enter()
             .append('path')
             .attr('class', 'debug-imperial debug cyan');
 
-        imperial.exit()
-            .remove();
-
 
         var driveLeft = layer
             .selectAll('path.debug-drive-left')
-            .data(showsDriveLeft ? [iD.data.driveLeft] : []);
+            .data(showsDriveLeft ? [dataDriveLeft] : []);
+
+        driveLeft.exit()
+            .remove();
 
         driveLeft.enter()
             .append('path')
             .attr('class', 'debug-drive-left debug green');
-
-        driveLeft.exit()
-            .remove();
 
 
         // update
         layer.selectAll('path')
             .attr('d', path);
     }
+
 
     // This looks strange because `enabled` methods on other layers are
     // chainable getter/setters, and this one is just a getter.
@@ -134,6 +145,7 @@ export function Debug(projection, context) {
             return this;
         }
     };
+
 
     return drawDebug;
 }

@@ -8,8 +8,7 @@
         "eslint:recommended"
     ],
     "globals": {
-        "d3": false,
-        "bootstrap": false
+        "d3": false
     },
     "parserOptions": {
         "ecmaVersion": 6,
@@ -23,10 +22,12 @@
         "linebreak-style": ["error", "unix"],
         "no-caller": "error",
         "no-catch-shadow": "error",
+        "no-console": "warn",
         "no-div-regex": "error",
         "no-extend-native": "error",
         "no-extra-bind": "error",
         "no-floating-decimal": "error",
+        "no-global-assign": "error",
         "no-implied-eval": "error",
         "no-invalid-this": "off",
         "no-iterator": "error",
@@ -35,7 +36,6 @@
         "no-lone-blocks": "error",
         "no-loop-func": "error",
         "no-multi-str": "error",
-        "no-native-reassign": "error",
         "no-new": "error",
         "no-new-func": "error",
         "no-new-wrappers": "error",
@@ -50,15 +50,17 @@
         "no-shadow": "off",
         "no-shadow-restricted-names": "error",
         "no-throw-literal": "error",
-        "no-undef": "warn",   // To catch uses of iD global - TODO remove
+        "no-undef": "error",
         "no-unneeded-ternary": "error",
         "no-unused-expressions": "error",
         "no-unexpected-multiline": "error",
         "no-unused-vars": "warn",
+        "no-useless-escape": "off",
         "no-void": "error",
         "no-warning-comments": "warn",
         "no-with": "error",
         "no-use-before-define": ["off", "nofunc"],
+        "radix": ["error", "always"],
         "semi": ["error", "always"],
         "semi-spacing": "error",
         "space-unary-ops": "error",

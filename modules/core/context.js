@@ -1,23 +1,48 @@
-import { t } from '../util/locale';
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { Background } from '../renderer/background';
-import { Connection } from './connection';
-import { Detect } from '../util/detect';
-import { Features } from '../renderer/features';
-import { History } from './history';
-import { Map } from '../renderer/map';
-import { RawMercator } from '../geo/raw_mercator';
-import { presets as presetsInit } from '../presets/presets';
-import { init as uiInit } from '../ui/init';
+import { t, currentLocale, addTranslation, setLocale } from '../util/locale';
+import { coreHistory } from './history';
+import { dataLocales, dataEn } from '../../data/index';
+import { geoRawMercator } from '../geo/raw_mercator';
+import { modeSelect } from '../modes/select';
+import { presetIndex } from '../presets/index';
+import { rendererBackground } from '../renderer/background';
+import { rendererFeatures } from '../renderer/features';
+import { rendererMap } from '../renderer/map';
+import { services } from '../services/index';
+import { uiInit } from '../ui/init';
+import { utilDetect } from '../util/detect';
+import { utilRebind } from '../util/rebind';
 
-export function Context(root) {
-    if (!root.locale) {
-        root.locale = {
-            current: function(_) { this._current = _; }
-        };
+
+export var areaKeys = {};
+
+export function setAreaKeys(value) {
+    areaKeys = value;
+}
+
+
+export function coreContext() {
+
+    // create a special translation that contains the keys in place of the strings
+    var tkeys = _.cloneDeep(dataEn);
+    var parents = [];
+
+    function traverser(v, k, obj) {
+        parents.push(k);
+        if (_.isObject(v)) {
+            _.forOwn(v, traverser);
+        } else if (_.isString(v)) {
+            obj[k] = parents.join('.');
+        }
+        parents.pop();
     }
-    root.locale.en = iD.data.en;
-    root.locale.current('en');
+
+    _.forOwn(tkeys, traverser);
+    addTranslation('_tkeys_', tkeys);
+
+    addTranslation('en', dataEn);
+    setLocale('en');
 
     var dispatch = d3.dispatch('enter', 'exit', 'change'),
         context = {};
@@ -95,7 +120,7 @@ export function Context(root) {
             if (!context.hasEntity(id)) return;
             map.on('drawn.zoomToEntity', null);
             context.on('enter.zoomToEntity', null);
-            context.enter(iD.modes.Select(context, [id]));
+            context.enter(modeSelect(context, [id]));
         });
 
         context.on('enter.zoomToEntity', function() {
@@ -124,21 +149,25 @@ export function Context(root) {
     };
 
     context.save = function() {
-        if (inIntro || (mode && mode.id === 'save') || d3.select('.modal').size()) return;
-        history.save();
-        if (history.hasChanges()) return t('save.unsaved_changes');
-    };
+        // no history save, no message onbeforeunload
+        if (inIntro || d3.select('.modal').size()) return;
 
-    context.flush = function() {
-        context.debouncedSave.cancel();
-        connection.flush();
-        features.reset();
-        history.reset();
-        _.each(iD.services, function(service) {
-            var reset = service().reset;
-            if (reset) reset(context);
-        });
-        return context;
+        var canSave;
+        if (mode && mode.id === 'save') {
+            canSave = false;
+        } else {
+            canSave = context.selectedIDs().every(function(id) {
+                var entity = context.hasEntity(id);
+                return entity && !entity.isDegenerate();
+            });
+        }
+
+        if (canSave) {
+            history.save();
+        }
+        if (history.hasChanges()) {
+            return t('save.unsaved_changes');
+        }
     };
 
 
@@ -165,12 +194,12 @@ export function Context(root) {
     context.enter = function(newMode) {
         if (mode) {
             mode.exit();
-            dispatch.exit(mode);
+            dispatch.call('exit', this, mode);
         }
 
         mode = newMode;
         mode.enter();
-        dispatch.enter(mode);
+        dispatch.call('enter', this, mode);
     };
 
     context.selectedIDs = function() {
@@ -217,18 +246,19 @@ export function Context(root) {
     };
 
 
+    /* Presets */
+    var presets;
+    context.presets = function() { return presets; };
+
+
     /* Map */
     var map;
     context.map = function() { return map; };
     context.layers = function() { return map.layers; };
     context.surface = function() { return map.surface; };
     context.editable = function() { return map.editable(); };
-
     context.surfaceRect = function() {
-        // Work around a bug in Firefox.
-        //   http://stackoverflow.com/questions/18153989/
-        //   https://bugzilla.mozilla.org/show_bug.cgi?id=530985
-        return context.surface().node().parentNode.getBoundingClientRect();
+        return map.surface.node().getBoundingClientRect();
     };
 
 
@@ -246,7 +276,7 @@ export function Context(root) {
     context.setDebug = function(flag, val) {
         if (arguments.length === 1) val = true;
         debugFlags[flag] = val;
-        dispatch.change();
+        dispatch.call('change');
         return context;
     };
     context.getDebug = function(flag) {
@@ -254,43 +284,18 @@ export function Context(root) {
     };
 
 
-    /* Presets */
-    var presets;
-    context.presets = function(_) {
-        if (!arguments.length) return presets;
-        presets.load(_);
-        iD.areaKeys = presets.areaKeys();
-        return context;
-    };
-
-
-    /* Imagery */
-    context.imagery = function(_) {
-        background.load(_);
-        return context;
-    };
-
-
     /* Container */
-    var container, embed;
+    var container = d3.select(document.body);
     context.container = function(_) {
         if (!arguments.length) return container;
         container = _;
         container.classed('id-container', true);
         return context;
     };
+    var embed;
     context.embed = function(_) {
         if (!arguments.length) return embed;
         embed = _;
-        return context;
-    };
-
-
-    /* Taginfo */
-    var taginfo;
-    context.taginfo = function(_) {
-        if (!arguments.length) return taginfo;
-        taginfo = _;
         return context;
     };
 
@@ -319,39 +324,70 @@ export function Context(root) {
         return context.asset('img/' + _);
     };
 
+
+    /* locales */
+    // `locale` variable contains a "requested locale".
+    // It won't become the `currentLocale` until after loadLocale() is called.
     var locale, localePath;
+
     context.locale = function(loc, path) {
-        if (!arguments.length) return locale;
+        if (!arguments.length) return currentLocale;
         locale = loc;
         localePath = path;
         return context;
     };
 
-    context.loadLocale = function(cb) {
-        if (locale && locale !== 'en' && iD.data.locales.indexOf(locale) !== -1) {
+    context.loadLocale = function(callback) {
+        if (locale && locale !== 'en' && dataLocales.hasOwnProperty(locale)) {
             localePath = localePath || context.asset('locales/' + locale + '.json');
             d3.json(localePath, function(err, result) {
-                root.locale[locale] = result;
-                root.locale.current(locale);
-                cb();
+                if (!err) {
+                    addTranslation(locale, result[locale]);
+                    setLocale(locale);
+                    utilDetect(true);
+                }
+                if (callback) {
+                    callback(err);
+                }
             });
         } else {
-            cb();
+            if (locale) {
+                setLocale(locale);
+                utilDetect(true);
+            }
+            if (callback) {
+                callback();
+            }
         }
     };
 
 
+    /* reset (aka flush) */
+    context.reset = context.flush = function() {
+        context.debouncedSave.cancel();
+        _.each(services, function(service) {
+            if (service && typeof service.reset === 'function') {
+                service.reset(context);
+            }
+        });
+        features.reset();
+        history.reset();
+        return context;
+    };
+
+
     /* Init */
-    context.version = '2.0.0-alpha.1';
+    context.version = '2.2.2';
 
-    context.projection = RawMercator();
+    context.projection = geoRawMercator();
+    context.curtainProjection = geoRawMercator();
 
-    locale = Detect().locale;
-    if (locale && iD.data.locales.indexOf(locale) === -1) {
+    locale = utilDetect().locale;
+    if (locale && !dataLocales.hasOwnProperty(locale)) {
         locale = locale.split('-')[0];
     }
 
-    history = History(context);
+    history = coreHistory(context);
     context.graph = history.graph;
     context.changes = history.changes;
     context.intersects = history.intersects;
@@ -376,13 +412,12 @@ export function Context(root) {
 
     ui = uiInit(context);
 
-    connection = Connection();
+    connection = services.osm;
+    background = rendererBackground(context);
+    features = rendererFeatures(context);
+    presets = presetIndex();
 
-    background = Background(context);
-
-    features = Features(context);
-
-    map = Map(context);
+    map = rendererMap(context);
     context.mouse = map.mouse;
     context.extent = map.extent;
     context.pan = map.pan;
@@ -392,8 +427,16 @@ export function Context(root) {
     context.zoomOutFurther = map.zoomOutFurther;
     context.redrawEnable = map.redrawEnable;
 
-    presets = presetsInit();
+    _.each(services, function(service) {
+        if (service && typeof service.init === 'function') {
+            service.init(context);
+        }
+    });
 
-    return d3.rebind(context, dispatch, 'on');
+    background.init();
+    presets.init();
+    areaKeys = presets.areaKeys();
+
+
+    return utilRebind(context, dispatch, 'on');
 }
-

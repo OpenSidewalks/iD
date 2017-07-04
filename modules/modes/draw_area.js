@@ -1,7 +1,7 @@
 import { t } from '../util/locale';
-import { DrawWay } from '../behavior/index';
+import { behaviorDrawWay } from '../behavior/index';
 
-export function DrawArea(context, wayId, baseGraph) {
+export function modeDrawArea(context, wayId, startGraph) {
     var mode = {
         button: 'area',
         id: 'draw-area'
@@ -9,18 +9,20 @@ export function DrawArea(context, wayId, baseGraph) {
 
     var behavior;
 
-    mode.enter = function() {
-        var way = context.entity(wayId),
-            headId = way.nodes[way.nodes.length - 2],
-            tailId = way.first();
 
-        behavior = DrawWay(context, wayId, -1, mode, baseGraph)
+    mode.enter = function() {
+        var way = context.entity(wayId);
+
+        behavior = behaviorDrawWay(context, wayId, undefined, mode, startGraph)
             .tail(t('modes.draw_area.tail'));
 
         var addNode = behavior.addNode;
 
         behavior.addNode = function(node) {
-            if (node.id === headId || node.id === tailId) {
+            var length = way.nodes.length,
+                penultimate = length > 2 ? way.nodes[length - 2] : null;
+
+            if (node.id === way.first() || node.id === penultimate) {
                 behavior.finish();
             } else {
                 addNode(node);
@@ -30,13 +32,16 @@ export function DrawArea(context, wayId, baseGraph) {
         context.install(behavior);
     };
 
+
     mode.exit = function() {
         context.uninstall(behavior);
     };
 
+
     mode.selectedIDs = function() {
         return [wayId];
     };
+
 
     return mode;
 }

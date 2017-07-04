@@ -1,8 +1,5 @@
 {
-    "icon": "marker",
-    "fields": [
-        "population"
-    ],
+    "icon": "triangle-stroked",
     "geometry": [
         "point",
         "area"

@@ -1,14 +1,25 @@
-import { qsString } from '../util/index';
+import { jsonpRequest } from '../util/jsonp_request';
+import { utilQsString } from '../util/index';
 
-var wikidata = {},
-    endpoint = 'https://www.wikidata.org/w/api.php?';
 
-export function init() {
+var endpoint = 'https://www.wikidata.org/w/api.php?';
+
+export default {
+
+    init: function() {},
+    reset: function() {},
+
+
     // Given a Wikipedia language and article title, return an array of
     // corresponding Wikidata entities.
-    wikidata.itemsByTitle = function(lang, title, callback) {
+    itemsByTitle: function(lang, title, callback) {
+        if (!title) {
+            callback('', {});
+            return;
+        }
+
         lang = lang || 'en';
-        d3.jsonp(endpoint + qsString({
+        jsonpRequest(endpoint + utilQsString({
             action: 'wbgetentities',
             format: 'json',
             sites: lang.replace(/-/g, '_') + 'wiki',
@@ -16,8 +27,12 @@ export function init() {
             languages: 'en', // shrink response by filtering to one language
             callback: '{callback}'
         }), function(data) {
-            callback(title, data.entities || {});
+            if (!data || data.error) {
+                callback('', {});
+            } else {
+                callback(title, data.entities || {});
+            }
         });
-    };
-    return wikidata;
-}
+    }
+
+};

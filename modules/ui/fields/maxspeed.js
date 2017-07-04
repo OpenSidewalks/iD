@@ -1,68 +1,89 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { pointInPolygon } from '../../geo/index';
+import { d3combobox } from '../../lib/d3.combobox.js';
+import { dataImperial } from '../../../data/index';
+import { geoPointInPolygon } from '../../geo/index';
+import {
+    utilGetSetValue,
+    utilNoAuto,
+    utilRebind
+} from '../../util';
 
-export function maxspeed(field, context) {
+
+export function uiFieldMaxspeed(field, context) {
     var dispatch = d3.dispatch('change'),
         entity,
-        imperial,
-        unitInput,
-        combobox,
-        input;
+        isImperial,
+        unitInput = d3.select(null),
+        input = d3.select(null),
+        combobox;
 
     var metricValues = [20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
-        imperialValues = [20, 25, 30, 35, 40, 45, 50, 55, 65, 70];
+        imperialValues = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80];
+
 
     function maxspeed(selection) {
-        combobox = d3.combobox();
-        var unitCombobox = d3.combobox().data(['km/h', 'mph'].map(comboValues));
+        combobox = d3combobox()
+            .container(context.container());
+
+        var unitCombobox = d3combobox()
+            .container(context.container())
+            .data(['km/h', 'mph'].map(comboValues));
 
         input = selection.selectAll('#preset-input-' + field.id)
             .data([0]);
 
-        input.enter().append('input')
+        input = input.enter()
+            .append('input')
             .attr('type', 'text')
             .attr('id', 'preset-input-' + field.id)
-            .attr('placeholder', field.placeholder());
+            .attr('placeholder', field.placeholder())
+            .call(utilNoAuto)
+            .call(combobox)
+            .merge(input);
 
         input
-            .call(combobox)
             .on('change', change)
             .on('blur', change);
 
         var childNodes = context.graph().childNodes(context.entity(entity.id)),
             loc = childNodes[~~(childNodes.length/2)].loc;
 
-        imperial = _.some(iD.data.imperial.features, function(f) {
+        isImperial = _.some(dataImperial.features, function(f) {
             return _.some(f.geometry.coordinates, function(d) {
-                return pointInPolygon(loc, d);
+                return geoPointInPolygon(loc, d);
             });
         });
 
         unitInput = selection.selectAll('input.maxspeed-unit')
             .data([0]);
 
-        unitInput.enter().append('input')
+        unitInput = unitInput.enter()
+            .append('input')
             .attr('type', 'text')
-            .attr('class', 'maxspeed-unit');
+            .attr('class', 'maxspeed-unit')
+            .call(unitCombobox)
+            .merge(unitInput);
 
         unitInput
             .on('blur', changeUnits)
-            .on('change', changeUnits)
-            .call(unitCombobox);
+            .on('change', changeUnits);
+
 
         function changeUnits() {
-            imperial = unitInput.value() === 'mph';
-            unitInput.value(imperial ? 'mph' : 'km/h');
+            isImperial = utilGetSetValue(unitInput) === 'mph';
+            utilGetSetValue(unitInput, isImperial ? 'mph' : 'km/h');
             setSuggestions();
             change();
         }
-
     }
+
 
     function setSuggestions() {
-        combobox.data((imperial ? imperialValues : metricValues).map(comboValues));
-        unitInput.value(imperial ? 'mph' : 'km/h');
+        combobox.data((isImperial ? imperialValues : metricValues).map(comboValues));
+        utilGetSetValue(unitInput, isImperial ? 'mph' : 'km/h');
     }
+
 
     function comboValues(d) {
         return {
@@ -71,43 +92,47 @@ export function maxspeed(field, context) {
         };
     }
 
+
     function change() {
         var tag = {},
-            value = input.value();
+            value = utilGetSetValue(input);
 
         if (!value) {
             tag[field.key] = undefined;
-        } else if (isNaN(value) || !imperial) {
+        } else if (isNaN(value) || !isImperial) {
             tag[field.key] = value;
         } else {
             tag[field.key] = value + ' mph';
         }
 
-        dispatch.change(tag);
+        dispatch.call('change', this, tag);
     }
+
 
     maxspeed.tags = function(tags) {
         var value = tags[field.key];
 
         if (value && value.indexOf('mph') >= 0) {
             value = parseInt(value, 10);
-            imperial = true;
+            isImperial = true;
         } else if (value) {
-            imperial = false;
+            isImperial = false;
         }
 
         setSuggestions();
-
-        input.value(value || '');
+        utilGetSetValue(input, value || '');
     };
+
 
     maxspeed.focus = function() {
         input.node().focus();
     };
 
+
     maxspeed.entity = function(_) {
         entity = _;
     };
 
-    return d3.rebind(maxspeed, dispatch, 'on');
+
+    return utilRebind(maxspeed, dispatch, 'on');
 }

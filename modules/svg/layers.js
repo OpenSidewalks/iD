@@ -1,19 +1,23 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { Debug } from './debug';
-import { Gpx } from './gpx';
-import { MapillaryImages } from './mapillary_images';
-import { MapillarySigns } from './mapillary_signs';
-import { Osm } from './osm';
+import { utilRebind } from '../util/rebind';
+import { utilGetDimensions, utilSetDimensions } from '../util/dimensions';
+import { svgDebug } from './debug';
+import { svgGpx } from './gpx';
+import { svgMapillaryImages } from './mapillary_images';
+import { svgMapillarySigns } from './mapillary_signs';
+import { svgOsm } from './osm';
 
-export function Layers(projection, context) {
+
+export function svgLayers(projection, context) {
     var dispatch = d3.dispatch('change'),
         svg = d3.select(null),
         layers = [
-            { id: 'osm', layer: Osm(projection, context, dispatch) },
-            { id: 'gpx', layer: Gpx(projection, context, dispatch) },
-            { id: 'mapillary-images', layer: MapillaryImages(projection, context, dispatch) },
-            { id: 'mapillary-signs',  layer: MapillarySigns(projection, context, dispatch) },
-            { id: 'debug', layer: Debug(projection, context, dispatch) }
+            { id: 'osm', layer: svgOsm(projection, context, dispatch) },
+            { id: 'gpx', layer: svgGpx(projection, context, dispatch) },
+            { id: 'mapillary-images', layer: svgMapillaryImages(projection, context, dispatch) },
+            { id: 'mapillary-signs',  layer: svgMapillarySigns(projection, context, dispatch) },
+            { id: 'debug', layer: svgDebug(projection, context, dispatch) }
         ];
 
 
@@ -21,33 +25,42 @@ export function Layers(projection, context) {
         svg = selection.selectAll('.surface')
             .data([0]);
 
-        svg.enter()
+        svg = svg.enter()
             .append('svg')
             .attr('class', 'surface')
-            .append('defs');
+            .merge(svg);
+
+        var defs = svg.selectAll('.surface-defs')
+            .data([0]);
+
+        defs.enter()
+            .append('defs')
+            .attr('class', 'surface-defs');
 
         var groups = svg.selectAll('.data-layer')
             .data(layers);
 
-        groups.enter()
-            .append('g')
-            .attr('class', function(d) { return 'data-layer data-layer-' + d.id; });
-
-        groups
-            .each(function(d) { d3.select(this).call(d.layer); });
-
         groups.exit()
             .remove();
+
+        groups.enter()
+            .append('g')
+            .attr('class', function(d) { return 'data-layer data-layer-' + d.id; })
+            .merge(groups)
+            .each(function(d) { d3.select(this).call(d.layer); });
     }
+
 
     drawLayers.all = function() {
         return layers;
     };
 
+
     drawLayers.layer = function(id) {
         var obj = _.find(layers, function(o) {return o.id === id;});
         return obj && obj.layer;
     };
+
 
     drawLayers.only = function(what) {
         var arr = [].concat(what);
@@ -55,14 +68,16 @@ export function Layers(projection, context) {
         return this;
     };
 
+
     drawLayers.remove = function(what) {
         var arr = [].concat(what);
         arr.forEach(function(id) {
             layers = _.reject(layers, function(o) {return o.id === id;});
         });
-        dispatch.change();
+        dispatch.call('change');
         return this;
     };
+
 
     drawLayers.add = function(what) {
         var arr = [].concat(what);
@@ -71,21 +86,17 @@ export function Layers(projection, context) {
                 layers.push(obj);
             }
         });
-        dispatch.change();
+        dispatch.call('change');
         return this;
     };
+
 
     drawLayers.dimensions = function(_) {
-        if (!arguments.length) return svg.dimensions();
-        svg.dimensions(_);
-        layers.forEach(function(obj) {
-            if (obj.layer.dimensions) {
-                obj.layer.dimensions(_);
-            }
-        });
+        if (!arguments.length) return utilGetDimensions(svg);
+        utilSetDimensions(svg, _);
         return this;
     };
 
 
-    return d3.rebind(drawLayers, dispatch, 'on');
+    return utilRebind(drawLayers, dispatch, 'on');
 }

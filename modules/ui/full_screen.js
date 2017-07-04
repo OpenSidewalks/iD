@@ -1,42 +1,53 @@
-import { cmd } from './cmd';
+import * as d3 from 'd3';
+import { d3keybinding } from '../lib/d3.keybinding.js';
+import { uiCmd } from './cmd';
+import { utilDetect } from '../util/detect';
 
-export function FullScreen(context) {
+
+export function uiFullScreen(context) {
     var element = context.container().node(),
-        keybinding = d3.keybinding('full-screen');
+        keybinding = d3keybinding('full-screen');
         // button;
+
 
     function getFullScreenFn() {
         if (element.requestFullscreen) {
             return element.requestFullscreen;
         } else if (element.msRequestFullscreen) {
-            return  element.msRequestFullscreen;
+            return element.msRequestFullscreen;
         } else if (element.mozRequestFullScreen) {
-            return  element.mozRequestFullScreen;
+            return element.mozRequestFullScreen;
         } else if (element.webkitRequestFullscreen) {
             return element.webkitRequestFullscreen;
         }
     }
 
+
     function getExitFullScreenFn() {
         if (document.exitFullscreen) {
             return document.exitFullscreen;
         } else if (document.msExitFullscreen) {
-            return  document.msExitFullscreen;
+            return document.msExitFullscreen;
         } else if (document.mozCancelFullScreen) {
-            return  document.mozCancelFullScreen;
+            return document.mozCancelFullScreen;
         } else if (document.webkitExitFullscreen) {
             return document.webkitExitFullscreen;
         }
     }
 
+
     function isFullScreen() {
-        return document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement ||
+        return document.fullscreenElement ||
+            document.mozFullScreenElement ||
+            document.webkitFullscreenElement ||
             document.msFullscreenElement;
     }
+
 
     function isSupported() {
         return !!getFullScreenFn();
     }
+
 
     function fullScreen() {
         d3.event.preventDefault();
@@ -49,12 +60,10 @@ export function FullScreen(context) {
         }
     }
 
+
     return function() { // selection) {
         if (!isSupported())
             return;
-
-        // var tooltip = bootstrap.tooltip()
-        //     .placement('left');
 
         // button = selection.append('button')
         //     .attr('title', t('full_screen'))
@@ -65,9 +74,9 @@ export function FullScreen(context) {
         // button.append('span')
         //     .attr('class', 'icon full-screen');
 
-        keybinding
-            .on('f11', fullScreen)
-            .on(cmd('⌘⇧F'), fullScreen);
+        var detected = utilDetect();
+        var keys = detected.os === 'mac' ? [uiCmd('⌃⌘F'), 'f11'] : ['f11'];
+        keybinding.on(keys, fullScreen);
 
         d3.select(document)
             .call(keybinding);

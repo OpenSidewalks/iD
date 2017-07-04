@@ -1,20 +1,22 @@
-import { euclideanDistance } from '../geo/index';
+import * as d3 from 'd3';
+import { geoEuclideanDistance } from '../geo/index';
 
-export function OneWaySegments(projection, graph, dt) {
+
+export function svgOneWaySegments(projection, graph, dt) {
     return function(entity) {
         var a,
             b,
             i = 0,
             offset = dt,
             segments = [],
-            clip = d3.geo.clipExtent().extent(projection.clipExtent()).stream,
+            clip = d3.geoIdentity().clipExtent(projection.clipExtent()).stream,
             coordinates = graph.childNodes(entity).map(function(n) {
                 return n.loc;
             });
 
         if (entity.tags.oneway === '-1') coordinates.reverse();
 
-        d3.geo.stream({
+        d3.geoStream({
             type: 'LineString',
             coordinates: coordinates
         }, projection.stream(clip({
@@ -26,7 +28,7 @@ export function OneWaySegments(projection, graph, dt) {
                 b = [x, y];
 
                 if (a) {
-                    var span = euclideanDistance(a, b) - offset;
+                    var span = geoEuclideanDistance(a, b) - offset;
 
                     if (span >= 0) {
                         var angle = Math.atan2(b[1] - a[1], b[0] - a[0]),

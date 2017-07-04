@@ -1,15 +1,19 @@
 import _ from 'lodash';
-export function DeprecateTags(entityId) {
+import { dataDeprecated } from '../../data/index';
+
+
+export function actionDeprecateTags(entityId) {
+
     return function(graph) {
         var entity = graph.entity(entityId),
             newtags = _.clone(entity.tags),
             change = false,
             rule;
 
-        // This handles deprecated tags with a single condition
-        for (var i = 0; i < iD.data.deprecated.length; i++) {
+        // This handles dataDeprecated tags with a single condition
+        for (var i = 0; i < dataDeprecated.length; i++) {
 
-            rule = iD.data.deprecated[i];
+            rule = dataDeprecated[i];
             var match = _.toPairs(rule.old)[0],
                 replacements = rule.replace ? _.toPairs(rule.replace) : null;
 

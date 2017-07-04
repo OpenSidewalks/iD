@@ -1,17 +1,12 @@
-describe('iD.behavior.Lasso', function () {
-    var lasso, context;
+describe('iD.behaviorLasso', function () {
+    var context, lasso;
 
     beforeEach(function () {
-        context = iD.Context(window).imagery(iD.data.imagery);
-        context.container(d3.select(document.createElement('div')));
-
-        // Neuter connection
-        context.connection().loadTiles = function () {};
-
-        lasso = iD.behavior.Lasso(context);
-
+        context = iD.Context();
         d3.select(document.createElement('div'))
+            .attr('id', 'map')
             .call(context.map());
+        lasso = iD.behaviorLasso(context);
     });
 
     afterEach(function () {

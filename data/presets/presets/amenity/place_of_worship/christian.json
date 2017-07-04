@@ -3,7 +3,8 @@
     "fields": [
         "denomination",
         "building_area",
-        "address"
+        "address",
+        "service_times"
     ],
     "geometry": [
         "point",
@@ -35,6 +36,10 @@
     "tags": {
         "amenity": "place_of_worship",
         "religion": "christian"
+    },
+    "reference": {
+        "key": "amenity",
+        "value": "place_of_worship"
     },
     "name": "Church"
 }

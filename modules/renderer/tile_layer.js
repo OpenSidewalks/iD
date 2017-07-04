@@ -1,13 +1,18 @@
-import { prefixCSSProperty } from '../util/index';
-export function TileLayer(context) {
+import * as d3 from 'd3';
+import { d3geoTile } from '../lib/d3.geo.tile';
+import { utilPrefixCSSProperty } from '../util/index';
+import { rendererBackgroundSource } from './background_source.js';
+
+
+export function rendererTileLayer(context) {
     var tileSize = 256,
-        tile = d3.geo.tile(),
+        tile = d3geoTile(),
         projection,
         cache = {},
         tileOrigin,
         z,
-        transformProp = prefixCSSProperty('Transform'),
-        source = d3.functor('');
+        transformProp = utilPrefixCSSProperty('Transform'),
+        source = rendererBackgroundSource.None();
 
 
     // blacklist overlay tiles around Null Island..
@@ -22,10 +27,12 @@ export function TileLayer(context) {
         return false;
     }
 
+
     function tileSizeAtZoom(d, z) {
         var epsilon = 0.002;
         return ((tileSize * Math.pow(2, z - d[2])) / tileSize) + epsilon;
     }
+
 
     function atZoom(t, distance) {
         var power = Math.pow(2, distance);
@@ -35,6 +42,7 @@ export function TileLayer(context) {
             t[2] + distance];
     }
 
+
     function lookUp(d) {
         for (var up = -1; up > -d[2]; up--) {
             var tile = atZoom(d, up);
@@ -43,6 +51,7 @@ export function TileLayer(context) {
             }
         }
     }
+
 
     function uniqueBy(a, n) {
         var o = [], seen = {};
@@ -55,10 +64,12 @@ export function TileLayer(context) {
         return o;
     }
 
+
     function addSource(d) {
         d.push(source.url(d));
         return d;
     }
+
 
     // Update tiles based on current state of `projection`.
     function background(selection) {
@@ -73,6 +84,7 @@ export function TileLayer(context) {
 
         render(selection);
     }
+
 
     // Derive the tiles onscreen, remove those offscreen and position them.
     // Important that this part not depend on `projection` because it's
@@ -141,8 +153,8 @@ export function TileLayer(context) {
                 ((d[1] * _ts) - tileOrigin[1] + pixelOffset[1] + scale * (tileSize / 2)) + 'px)';
         }
 
-        var image = selection
-            .selectAll('img')
+
+        var image = selection.selectAll('img')
             .data(requests, function(d) { return d[3]; });
 
         image.exit()
@@ -157,13 +169,13 @@ export function TileLayer(context) {
                 }, 300);
             });
 
-        image.enter().append('img')
+        image.enter()
+          .append('img')
             .attr('class', 'tile')
             .attr('src', function(d) { return d[3]; })
             .on('error', error)
-            .on('load', load);
-
-        image
+            .on('load', load)
+          .merge(image)
             .style(transformProp, imageTransform)
             .classed('tile-debug', showDebug)
             .classed('tile-removing', false);
@@ -176,13 +188,13 @@ export function TileLayer(context) {
             .remove();
 
         debug.enter()
-            .append('div')
-            .attr('class', 'tile-label-debug');
-
-        debug
+          .append('div')
+            .attr('class', 'tile-label-debug')
+          .merge(debug)
             .text(function(d) { return d[2] + ' / ' + d[0] + ' / ' + d[1]; })
             .style(transformProp, debugTransform);
     }
+
 
     background.projection = function(_) {
         if (!arguments.length) return projection;
@@ -190,11 +202,13 @@ export function TileLayer(context) {
         return background;
     };
 
+
     background.dimensions = function(_) {
         if (!arguments.length) return tile.size();
         tile.size(_);
         return background;
     };
+
 
     background.source = function(_) {
         if (!arguments.length) return source;
@@ -203,6 +217,7 @@ export function TileLayer(context) {
         tile.scaleExtent(source.scaleExtent);
         return background;
     };
+
 
     return background;
 }

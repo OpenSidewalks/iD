@@ -1,4 +1,5 @@
 {
+    "icon": "poi-military",
     "geometry": [
         "area"
     ],
@@ -6,5 +7,6 @@
         "landuse": "military"
     },
     "terms": [],
+    "matchScore": 0.9,
     "name": "Military Area"
 }

@@ -1,16 +1,28 @@
+import * as d3 from 'd3';
 import { t } from '../../util/locale';
+import { dataPhoneFormats } from '../../../data/index';
+import { services } from '../../services/index';
+import {
+    utilGetSetValue,
+    utilNoAuto,
+    utilRebind
+} from '../../util';
+
 
 export {
-  url as text,
-  url as number,
-  url as tel,
-  url as email
+    uiFieldText as uiFieldUrl,
+    uiFieldText as uiFieldNumber,
+    uiFieldText as uiFieldTel,
+    uiFieldText as uiFieldEmail
 };
-export function url(field, context) {
 
+
+export function uiFieldText(field, context) {
     var dispatch = d3.dispatch('change'),
+        nominatim = services.geocoder,
         input,
         entity;
+
 
     function i(selection) {
         var fieldId = 'preset-input-' + field.id;
@@ -18,23 +30,25 @@ export function url(field, context) {
         input = selection.selectAll('input')
             .data([0]);
 
-        input.enter().append('input')
+        input = input.enter()
+            .append('input')
             .attr('type', field.type)
             .attr('id', fieldId)
-            .attr('placeholder', field.placeholder() || t('inspector.unknown'));
+            .attr('placeholder', field.placeholder() || t('inspector.unknown'))
+            .call(utilNoAuto)
+            .merge(input);
 
         input
             .on('input', change(true))
             .on('blur', change())
             .on('change', change());
 
-        if (field.type === 'tel') {
+        if (field.type === 'tel' && nominatim && entity) {
             var center = entity.extent(context.graph()).center();
-            iD.services.nominatim.init();
-            iD.services.nominatim.countryCode(center, function (err, countryCode) {
-                if (err || !iD.data.phoneFormats[countryCode]) return;
+            nominatim.countryCode(center, function (err, countryCode) {
+                if (err || !dataPhoneFormats[countryCode]) return;
                 selection.selectAll('#' + fieldId)
-                    .attr('placeholder', iD.data.phoneFormats[countryCode]);
+                    .attr('placeholder', dataPhoneFormats[countryCode]);
             });
 
         } else if (field.type === 'number') {
@@ -43,18 +57,24 @@ export function url(field, context) {
             var spinControl = selection.selectAll('.spin-control')
                 .data([0]);
 
-            var enter = spinControl.enter().append('div')
+            var enter = spinControl.enter()
+                .append('div')
                 .attr('class', 'spin-control');
 
-            enter.append('button')
+            enter
+                .append('button')
+                .datum(-1)
+                .attr('class', 'decrement')
+                .attr('tabindex', -1);
+
+            enter
+                .append('button')
                 .datum(1)
                 .attr('class', 'increment')
                 .attr('tabindex', -1);
 
-            enter.append('button')
-                .datum(-1)
-                .attr('class', 'decrement')
-                .attr('tabindex', -1);
+            spinControl = spinControl
+                .merge(enter);
 
             spinControl.selectAll('button')
                 .on('click', function(d) {
@@ -66,13 +86,15 @@ export function url(field, context) {
         }
     }
 
+
     function change(onInput) {
         return function() {
             var t = {};
-            t[field.key] = input.value() || undefined;
-            dispatch.change(t, onInput);
+            t[field.key] = utilGetSetValue(input) || undefined;
+            dispatch.call('change', this, t, onInput);
         };
     }
+
 
     i.entity = function(_) {
         if (!arguments.length) return entity;
@@ -80,14 +102,16 @@ export function url(field, context) {
         return i;
     };
 
+
     i.tags = function(tags) {
-        input.value(tags[field.key] || '');
+        utilGetSetValue(input, tags[field.key] || '');
     };
+
 
     i.focus = function() {
         var node = input.node();
         if (node) node.focus();
     };
 
-    return d3.rebind(i, dispatch, 'on');
+    return utilRebind(i, dispatch, 'on');
 }

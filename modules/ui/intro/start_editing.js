@@ -1,61 +1,77 @@
+import * as d3 from 'd3';
 import { t } from '../../util/locale';
 import { icon } from './helper';
-import { modal } from '../modal';
+import { uiModal } from '../modal';
+import { utilRebind } from '../../util/rebind';
 
-export function startEditing(context, reveal) {
-    var event = d3.dispatch('done', 'startEditing'),
-        modalSelection,
-        timeouts = [];
 
-    var step = {
+export function uiIntroStartEditing(context, reveal) {
+    var dispatch = d3.dispatch('done', 'startEditing'),
+        modalSelection = d3.select(null);
+
+
+    var chapter = {
         title: 'intro.startediting.title'
     };
 
-    function timeout(f, t) {
-        timeouts.push(window.setTimeout(f, t));
+
+    function showHelp() {
+        reveal('.map-control.help-control',
+            t('intro.startediting.help', { button: icon('#icon-help', 'pre-text') }), {
+                buttonText: t('intro.ok'),
+                buttonCallback: function() { showSave(); }
+            }
+        );
     }
 
-    step.enter = function() {
-        reveal('.map-control.help-control',
-            t('intro.startediting.help', { button: icon('#icon-help', 'pre-text') }));
+    function showSave() {
+        reveal('#bar button.save',
+            t('intro.startediting.save'), {
+                buttonText: t('intro.ok'),
+                buttonCallback: function() { showStart(); }
+            }
+        );
+    }
 
-        timeout(function() {
-            reveal('#bar button.save', t('intro.startediting.save'));
-        }, 5000);
+    function showStart() {
+        modalSelection = uiModal(context.container());
 
-        timeout(function() {
-            reveal('#surface');
-        }, 10000);
+        modalSelection.select('.modal')
+            .attr('class', 'modal-splash modal col6');
 
-        timeout(function() {
-            modalSelection = modal(context.container());
+        modalSelection.selectAll('.close').remove();
 
-            modalSelection.select('.modal')
-                .attr('class', 'modal-splash modal col6');
+        var startbutton = modalSelection.select('.content')
+            .attr('class', 'fillL')
+            .append('button')
+                .attr('class', 'modal-section huge-modal-button')
+                .on('click', function() {
+                    modalSelection.remove();
+                });
 
-            modalSelection.selectAll('.close').remove();
+            startbutton
+                .append('svg')
+                .attr('class', 'illustration')
+                .append('use')
+                .attr('xlink:href', '#logo-walkthrough');
 
-            var startbutton = modalSelection.select('.content')
-                .attr('class', 'fillL')
-                    .append('button')
-                        .attr('class', 'modal-section huge-modal-button')
-                        .on('click', function() {
-                            modalSelection.remove();
-                        });
+            startbutton
+                .append('h2')
+                .text(t('intro.startediting.start'));
 
-                startbutton.append('div')
-                    .attr('class','illustration');
-                startbutton.append('h2')
-                    .text(t('intro.startediting.start'));
+        dispatch.call('startEditing');
+    }
 
-            event.startEditing();
-        }, 10500);
+
+    chapter.enter = function() {
+        showHelp();
     };
 
-    step.exit = function() {
-        if (modalSelection) modalSelection.remove();
-        timeouts.forEach(window.clearTimeout);
+
+    chapter.exit = function() {
+        modalSelection.remove();
     };
 
-    return d3.rebind(step, event, 'on');
+
+    return utilRebind(chapter, dispatch, 'on');
 }

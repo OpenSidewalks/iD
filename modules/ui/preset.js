@@ -1,24 +1,36 @@
-import { t } from '../util/locale';
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { Browse } from '../modes/index';
-import { Disclosure } from './disclosure';
-import { Icon } from '../svg/index';
-import { TagReference } from './tag_reference';
-import { fields } from './fields/index';
+import { d3combobox } from '../lib/d3.combobox.js';
+import { t, textDirection } from '../util/locale';
+import { modeBrowse } from '../modes/index';
+import { svgIcon } from '../svg/index';
+import { uiDisclosure } from './disclosure';
+import { uiFields } from './fields/index';
+import { uiTagReference } from './tag_reference';
+import {
+    utilGetSetValue,
+    utilNoAuto,
+    utilRebind
+} from '../util';
 
-export function preset(context) {
-    var event = d3.dispatch('change'),
+
+export function uiPreset(context) {
+    var dispatch = d3.dispatch('change'),
         state,
         fieldsArr,
         preset,
         tags,
         id;
 
+
+    // Field Constructor
     function UIField(field, entity, show) {
         field = _.clone(field);
 
-        field.input = fields[field.type](field, context)
-            .on('change', event.change);
+        field.input = uiFields[field.type](field, context)
+            .on('change', function(t, onInput) {
+                dispatch.call('change', field, t, onInput);
+            });
 
         if (field.input.entity) field.input.entity(entity);
 
@@ -63,28 +75,37 @@ export function preset(context) {
         return field;
     }
 
+
     function fieldKey(field) {
         return field.id;
     }
 
+
     function presets(selection) {
-        selection.call(Disclosure()
+        selection.call(uiDisclosure()
             .title(t('inspector.all_fields'))
             .expanded(context.storage('preset_fields.expanded') !== 'false')
             .on('toggled', toggled)
-            .content(content));
+            .content(content)
+        );
 
         function toggled(expanded) {
             context.storage('preset_fields.expanded', expanded);
         }
     }
 
+
     function content(selection) {
         if (!fieldsArr) {
             var entity = context.entity(id),
-                geometry = context.geometry(id);
+                geometry = context.geometry(id),
+                presets = context.presets();
 
-            fieldsArr = [UIField(context.presets().field('name'), entity)];
+            fieldsArr = [];
+
+            if (presets.field('name')) {
+                fieldsArr.push(UIField(presets.field('name'), entity));
+            }
 
             preset.fields.forEach(function(field) {
                 if (field.matchGeometry(geometry)) {
@@ -92,11 +113,11 @@ export function preset(context) {
                 }
             });
 
-            if (entity.isHighwayIntersection(context.graph())) {
-                fieldsArr.push(UIField(context.presets().field('restrictions'), entity, true));
+            if (entity.isHighwayIntersection(context.graph()) && presets.field('restrictions')) {
+                fieldsArr.push(UIField(presets.field('restrictions'), entity, true));
             }
 
-            context.presets().universal().forEach(function(field) {
+            presets.universal().forEach(function(field) {
                 if (preset.fields.indexOf(field) < 0) {
                     fieldsArr.push(UIField(field, entity));
                 }
@@ -106,59 +127,72 @@ export function preset(context) {
         var shown = fieldsArr.filter(function(field) { return field.shown(); }),
             notShown = fieldsArr.filter(function(field) { return !field.shown(); });
 
-        var $form = selection.selectAll('.preset-form')
+
+        var form = selection.selectAll('.preset-form')
             .data([0]);
 
-        $form.enter().append('div')
-            .attr('class', 'preset-form inspector-inner fillL3');
+        form = form.enter()
+            .append('div')
+            .attr('class', 'preset-form inspector-inner fillL3')
+            .merge(form);
 
-        var $fields = $form.selectAll('.form-field')
+
+        var fields = form.selectAll('.form-field')
             .data(shown, fieldKey);
 
-        // Enter
+        fields.exit()
+            .remove();
 
-        var $enter = $fields.enter()
+        // Enter
+        var enter = fields.enter()
             .append('div')
             .attr('class', function(field) {
                 return 'form-field form-field-' + field.id;
             });
 
-        var $label = $enter.append('label')
+        var label = enter
+            .append('label')
             .attr('class', 'form-label')
             .attr('for', function(field) { return 'preset-input-' + field.id; })
             .text(function(field) { return field.label(); });
 
-        var wrap = $label.append('div')
+        var wrap = label
+            .append('div')
             .attr('class', 'form-label-button-wrap');
 
         wrap.append('button')
             .attr('class', 'remove-icon')
             .attr('tabindex', -1)
-            .call(Icon('#operation-delete'));
+            .call(svgIcon('#operation-delete'));
 
         wrap.append('button')
             .attr('class', 'modified-icon')
             .attr('tabindex', -1)
-            .call(Icon('#icon-undo'));
+            .call(
+                (textDirection === 'rtl') ? svgIcon('#icon-redo') : svgIcon('#icon-undo')
+            );
+
 
         // Update
+        fields = fields
+            .merge(enter);
 
-        $fields.select('.form-label-button-wrap .remove-icon')
+        fields.selectAll('.form-label-button-wrap .remove-icon')
             .on('click', remove);
 
-        $fields.select('.modified-icon')
+        fields.selectAll('.modified-icon')
             .on('click', revert);
 
-        $fields
+        fields
             .order()
-            .classed('modified', function(field) {
-                return field.modified();
-            })
-            .classed('present', function(field) {
-                return field.present();
-            })
+            .classed('modified', function(field) { return field.modified(); })
+            .classed('present', function(field) { return field.present(); })
             .each(function(field) {
-                var reference = TagReference(field.reference || {key: field.key}, context);
+                var referenceKey = field.key;
+                if (field.type === 'multiCombo') {   // lookup key without the trailing ':'
+                    referenceKey = referenceKey.replace(/:$/, '');
+                }
+                var reference = uiTagReference(field.reference || { key: referenceKey }, context);
 
                 if (state === 'hover') {
                     reference.showing(false);
@@ -170,18 +204,17 @@ export function preset(context) {
                     .on('keydown', function() {
                         // if user presses enter, and combobox is not active, accept edits..
                         if (d3.event.keyCode === 13 && d3.select('.combobox').empty()) {
-                            context.enter(Browse(context));
+                            context.enter(modeBrowse(context));
                         }
-                    })
+                    });
+
+                d3.select(this)
                     .call(reference.body)
                     .select('.form-label-button-wrap')
                     .call(reference.button);
 
                 field.input.tags(tags);
             });
-
-        $fields.exit()
-            .remove();
 
         notShown = notShown.map(function(field) {
             return {
@@ -191,22 +224,36 @@ export function preset(context) {
             };
         });
 
-        var $more = selection.selectAll('.more-fields')
+
+        var more = selection.selectAll('.more-fields')
             .data((notShown.length > 0) ? [0] : []);
 
-        $more.enter().append('div')
+        more.exit()
+            .remove();
+
+        more = more.enter()
+            .append('div')
             .attr('class', 'more-fields')
             .append('label')
-                .text(t('inspector.add_fields'));
+            .text(t('inspector.add_fields'))
+            .merge(more);
 
-        var $input = $more.selectAll('.value')
+
+        var input = more.selectAll('.value')
             .data([0]);
 
-        $input.enter().append('input')
-            .attr('class', 'value')
-            .attr('type', 'text');
+        input.exit()
+            .remove();
 
-        $input.value('')
+        input = input.enter()
+            .append('input')
+            .attr('class', 'value')
+            .attr('type', 'text')
+            .call(utilNoAuto)
+            .merge(input);
+
+        input
+            .call(utilGetSetValue, '')
             .attr('placeholder', function() {
                 var placeholder = [];
                 for (var field in notShown) {
@@ -214,15 +261,13 @@ export function preset(context) {
                 }
                 return placeholder.slice(0,3).join(', ') + ((placeholder.length > 3) ? '…' : '');
             })
-            .call(d3.combobox().data(notShown)
+            .call(d3combobox()
+                .container(context.container())
+                .data(notShown)
                 .minItems(1)
-                .on('accept', show));
+                .on('accept', show)
+            );
 
-        $more.exit()
-            .remove();
-
-        $input.exit()
-            .remove();
 
         function show(field) {
             field = field.field;
@@ -231,18 +276,21 @@ export function preset(context) {
             field.input.focus();
         }
 
+
         function revert(field) {
             d3.event.stopPropagation();
             d3.event.preventDefault();
-            event.change(field.revert());
+            dispatch.call('change', field, field.revert());
         }
+
 
         function remove(field) {
             d3.event.stopPropagation();
             d3.event.preventDefault();
-            event.change(field.remove());
+            dispatch.call('change', field, field.remove());
         }
     }
+
 
     presets.preset = function(_) {
         if (!arguments.length) return preset;
@@ -252,11 +300,13 @@ export function preset(context) {
         return presets;
     };
 
+
     presets.state = function(_) {
         if (!arguments.length) return state;
         state = _;
         return presets;
     };
+
 
     presets.tags = function(_) {
         if (!arguments.length) return tags;
@@ -264,6 +314,7 @@ export function preset(context) {
         // Don't reset fieldsArr here.
         return presets;
     };
+
 
     presets.entityID = function(_) {
         if (!arguments.length) return id;
@@ -273,5 +324,6 @@ export function preset(context) {
         return presets;
     };
 
-    return d3.rebind(presets, event, 'on');
+
+    return utilRebind(presets, dispatch, 'on');
 }

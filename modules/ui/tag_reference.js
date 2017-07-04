@@ -1,23 +1,30 @@
-import { t } from '../util/locale';
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { Detect } from '../util/detect';
-import { Icon } from '../svg/index';
+import { t } from '../util/locale';
+import { utilDetect } from '../util/detect';
+import { services } from '../services/index';
+import { svgIcon } from '../svg/index';
 
-export function TagReference(tag, context) {
-    var tagReference = {},
+
+export function uiTagReference(tag) {
+    var taginfo = services.taginfo,
+        tagReference = {},
         button,
         body,
         loaded,
         showing;
 
+
     function findLocal(data) {
-        var locale = Detect().locale.toLowerCase(),
+        var locale = utilDetect().locale.toLowerCase(),
             localized;
 
-        localized = _.find(data, function(d) {
-            return d.lang.toLowerCase() === locale;
-        });
-        if (localized) return localized;
+        if (locale !== 'pt-br') {  // see #3776, prefer 'pt' over 'pt-br'
+            localized = _.find(data, function(d) {
+                return d.lang.toLowerCase() === locale;
+            });
+            if (localized) return localized;
+        }
 
         // try the non-regional version of a language, like
         // 'en' if the language is 'en-US'
@@ -35,10 +42,13 @@ export function TagReference(tag, context) {
         });
     }
 
+
     function load(param) {
+        if (!taginfo) return;
+
         button.classed('tag-reference-loading', true);
 
-        context.taginfo().docs(param, function show(err, data) {
+        taginfo.docs(param, function show(err, data) {
             var docs;
             if (!err && data) {
                 docs = findLocal(data);
@@ -46,7 +56,8 @@ export function TagReference(tag, context) {
 
             body.html('');
 
-            if (!docs || !docs.description) {
+
+            if (!docs || !docs.title) {
                 if (param.hasOwnProperty('value')) {
                     load(_.omit(param, 'value'));   // retry with key only
                 } else {
@@ -55,6 +66,7 @@ export function TagReference(tag, context) {
                 }
                 return;
             }
+
 
             if (docs.image && docs.image.thumb_url_prefix) {
                 body
@@ -69,18 +81,19 @@ export function TagReference(tag, context) {
 
             body
                 .append('p')
-                .text(docs.description);
+                .text(docs.description || t('inspector.documentation_redirect'));
 
             body
                 .append('a')
                 .attr('target', '_blank')
                 .attr('tabindex', -1)
                 .attr('href', 'https://wiki.openstreetmap.org/wiki/' + docs.title)
-                .call(Icon('#icon-out-link', 'inline'))
+                .call(svgIcon('#icon-out-link', 'inline'))
                 .append('span')
                 .text(t('inspector.reference'));
         });
     }
+
 
     function done() {
         loaded = true;
@@ -95,6 +108,7 @@ export function TagReference(tag, context) {
         showing = true;
     }
 
+
     function hide(selection) {
         selection = selection || body.transition().duration(200);
 
@@ -105,50 +119,56 @@ export function TagReference(tag, context) {
         showing = false;
     }
 
+
     tagReference.button = function(selection) {
         button = selection.selectAll('.tag-reference-button')
             .data([0]);
 
-        button.enter()
+        button = button.enter()
             .append('button')
             .attr('class', 'tag-reference-button')
             .attr('tabindex', -1)
-            .call(Icon('#icon-inspect'));
+            .call(svgIcon('#icon-inspect'))
+            .merge(button);
 
-        button.on('click', function () {
-            d3.event.stopPropagation();
-            d3.event.preventDefault();
-            if (showing) {
-                hide();
-            } else if (loaded) {
-                done();
-            } else {
-                if (context.taginfo()) {
+        button
+            .on('click', function () {
+                d3.event.stopPropagation();
+                d3.event.preventDefault();
+                if (showing) {
+                    hide();
+                } else if (loaded) {
+                    done();
+                } else {
                     load(tag);
                 }
-            }
-        });
+            });
     };
+
 
     tagReference.body = function(selection) {
         body = selection.selectAll('.tag-reference-body')
             .data([0]);
 
-        body.enter().append('div')
+        body = body.enter()
+            .append('div')
             .attr('class', 'tag-reference-body cf')
             .style('max-height', '0')
-            .style('opacity', '0');
+            .style('opacity', '0')
+            .merge(body);
 
         if (showing === false) {
             hide(body);
         }
     };
 
+
     tagReference.showing = function(_) {
         if (!arguments.length) return showing;
         showing = _;
         return tagReference;
     };
+
 
     return tagReference;
 }

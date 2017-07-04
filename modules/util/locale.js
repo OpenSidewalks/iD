@@ -1,18 +1,32 @@
-var locale = { _current: 'en' };
-window.locale = locale;
+var translations = Object.create(null);
 
-locale.current = function(_) {
-    if (!arguments.length) return locale._current;
-    if (locale[_] !== undefined) locale._current = _;
-    else if (locale[_.split('-')[0]]) locale._current = _.split('-')[0];
-    return locale;
-};
+export var currentLocale = 'en';
+export var textDirection = 'ltr';
 
+export function setLocale(_) {
+    if (translations[_] !== undefined) {
+        currentLocale = _;
+    } else if (translations[_.split('-')[0]]) {
+        currentLocale = _.split('-')[0];
+    }
+}
+
+export function addTranslation(id, value) {
+    translations[id] = value;
+}
+
+/**
+ * Given a string identifier, try to find that string in the current
+ * language, and return it.
+ *
+ * @param {string} s string identifier
+ * @returns {string?} locale string
+ */
 export function t(s, o, loc) {
-    loc = loc || locale._current;
+    loc = loc || currentLocale;
 
-    var path = s.split('.').reverse(),
-        rep = locale[loc];
+    var path = s.split('.').reverse();
+    var rep = translations[loc];
 
     while (rep !== undefined && path.length) rep = rep[path.pop()];
 
@@ -33,4 +47,14 @@ export function t(s, o, loc) {
     if (typeof console !== 'undefined') console.error(missing); // eslint-disable-line
 
     return missing;
+}
+
+/**
+ * Given string 'ltr' or 'rtl', save that setting
+ *
+ * @param {string} s ltr or rtl
+ */
+
+export function setTextDirection(dir) {
+    textDirection = dir;
 }

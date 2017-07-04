@@ -1,13 +1,24 @@
-import { qsString } from '../util/index';
+import { jsonpRequest } from '../util/jsonp_request';
+import { utilQsString } from '../util/index';
 
-var wikipedia = {},
-    endpoint = 'https://en.wikipedia.org/w/api.php?';
 
-export function init() {
-    wikipedia.search = function(lang, query, callback) {
+var endpoint = 'https://en.wikipedia.org/w/api.php?';
+
+export default {
+
+    init: function() {},
+    reset: function() {},
+
+
+    search: function(lang, query, callback) {
+        if (!query) {
+            callback('', []);
+            return;
+        }
+
         lang = lang || 'en';
-        d3.jsonp(endpoint.replace('en', lang) +
-            qsString({
+        jsonpRequest(endpoint.replace('en', lang) +
+            utilQsString({
                 action: 'query',
                 list: 'search',
                 srlimit: '10',
@@ -16,48 +27,72 @@ export function init() {
                 callback: '{callback}',
                 srsearch: query
             }), function(data) {
-                if (!data.query) return;
-                callback(query, data.query.search.map(function(d) {
-                    return d.title;
-                }));
-            });
-    };
+                if (!data || !data.query || !data.query.search || data.error) {
+                    callback('', []);
+                } else {
+                    var results = data.query.search.map(function(d) { return d.title; });
+                    callback(query, results);
+                }
+            }
+        );
+    },
 
-    wikipedia.suggestions = function(lang, query, callback) {
+
+    suggestions: function(lang, query, callback) {
+        if (!query) {
+            callback('', []);
+            return;
+        }
+
         lang = lang || 'en';
-        d3.jsonp(endpoint.replace('en', lang) +
-            qsString({
+        jsonpRequest(endpoint.replace('en', lang) +
+            utilQsString({
                 action: 'opensearch',
                 namespace: 0,
                 suggest: '',
                 format: 'json',
                 callback: '{callback}',
                 search: query
-            }), function(d) {
-                callback(d[0], d[1]);
-            });
-    };
+            }), function(data) {
+                if (!data || data.error) {
+                    callback('', []);
+                } else {
+                    callback(data[0], data[1] || []);
+                }
+            }
+        );
+    },
 
-    wikipedia.translations = function(lang, title, callback) {
-        d3.jsonp(endpoint.replace('en', lang) +
-            qsString({
+
+    translations: function(lang, title, callback) {
+        if (!title) {
+            callback({});
+            return;
+        }
+
+        jsonpRequest(endpoint.replace('en', lang) +
+            utilQsString({
                 action: 'query',
                 prop: 'langlinks',
                 format: 'json',
                 callback: '{callback}',
                 lllimit: 500,
                 titles: title
-            }), function(d) {
-                var list = d.query.pages[Object.keys(d.query.pages)[0]],
-                    translations = {};
-                if (list && list.langlinks) {
-                    list.langlinks.forEach(function(d) {
-                        translations[d.lang] = d['*'];
-                    });
+            }), function(data) {
+                if (!data || !data.query || !data.query.pages || data.error) {
+                    callback({});
+                } else {
+                    var list = data.query.pages[Object.keys(data.query.pages)[0]],
+                        translations = {};
+                    if (list && list.langlinks) {
+                        list.langlinks.forEach(function(d) {
+                            translations[d.lang] = d['*'];
+                        });
+                    }
                     callback(translations);
                 }
-            });
-    };
+            }
+        );
+    }
 
-    return wikipedia;
-}
+};

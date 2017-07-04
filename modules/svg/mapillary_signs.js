@@ -1,46 +1,54 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { PointTransform } from './point_transform';
+import { services } from '../services/index';
 
-export function MapillarySigns(projection, context, dispatch) {
-    var debouncedRedraw = _.debounce(function () { dispatch.change(); }, 1000),
+
+export function svgMapillarySigns(projection, context, dispatch) {
+    var throttledRedraw = _.throttle(function () { dispatch.call('change'); }, 1000),
         minZoom = 12,
         layer = d3.select(null),
         _mapillary;
 
+
     function init() {
-        if (MapillarySigns.initialized) return;  // run once
-        MapillarySigns.enabled = false;
-        MapillarySigns.initialized = true;
+        if (svgMapillarySigns.initialized) return;  // run once
+        svgMapillarySigns.enabled = false;
+        svgMapillarySigns.initialized = true;
     }
 
+
     function getMapillary() {
-        if (iD.services.mapillary && !_mapillary) {
-            _mapillary = iD.services.mapillary.init();
-            _mapillary.event.on('loadedSigns', debouncedRedraw);
-        } else if (!iD.services.mapillary && _mapillary) {
+        if (services.mapillary && !_mapillary) {
+            _mapillary = services.mapillary;
+            _mapillary.event.on('loadedSigns', throttledRedraw);
+        } else if (!services.mapillary && _mapillary) {
             _mapillary = null;
         }
         return _mapillary;
     }
 
+
     function showLayer() {
         editOn();
-        debouncedRedraw();
     }
 
+
     function hideLayer() {
-        debouncedRedraw.cancel();
+        throttledRedraw.cancel();
         editOff();
     }
+
 
     function editOn() {
         layer.style('display', 'block');
     }
 
+
     function editOff() {
         layer.selectAll('.icon-sign').remove();
         layer.style('display', 'none');
     }
+
 
     function click(d) {
         var mapillary = getMapillary();
@@ -49,20 +57,23 @@ export function MapillarySigns(projection, context, dispatch) {
         context.map().centerEase(d.loc);
 
         mapillary
-            .setSelectedImage(d.key, true)
+            .selectedImage(d.key, true)
             .updateViewer(d.key, context)
             .showViewer();
     }
 
+
     function update() {
         var mapillary = getMapillary(),
-            data = (mapillary ? mapillary.signs(projection, layer.dimensions()) : []),
-            imageKey = mapillary ? mapillary.getSelectedImage() : null;
+            data = (mapillary ? mapillary.signs(projection) : []),
+            imageKey = mapillary ? mapillary.selectedImage() : null;
 
         var signs = layer.selectAll('.icon-sign')
             .data(data, function(d) { return d.key; });
 
-        // Enter
+        signs.exit()
+            .remove();
+
         var enter = signs.enter()
             .append('foreignObject')
             .attr('class', 'icon-sign')
@@ -73,66 +84,62 @@ export function MapillarySigns(projection, context, dispatch) {
 
         enter
             .append('xhtml:body')
+            .attr('class', 'icon-sign-body')
             .html(mapillary.signHTML);
 
-        // Exit
-        signs.exit()
-            .remove();
-
-        // Update
         signs
-            .attr('transform', PointTransform(projection));
+            .merge(enter)
+            .attr('x', function(d) { return projection(d.loc)[0] - 16; })   // offset by -16px to
+            .attr('y', function(d) { return projection(d.loc)[1] - 16; });  // center signs on loc
     }
 
+
     function drawSigns(selection) {
-        var enabled = MapillarySigns.enabled,
+        var enabled = svgMapillarySigns.enabled,
             mapillary = getMapillary();
 
         layer = selection.selectAll('.layer-mapillary-signs')
             .data(mapillary ? [0] : []);
 
-        layer.enter()
+        layer.exit()
+            .remove();
+
+        layer = layer.enter()
             .append('g')
             .attr('class', 'layer-mapillary-signs')
             .style('display', enabled ? 'block' : 'none')
-            .attr('transform', 'translate(-16, -16)');  // center signs on loc
-
-        layer.exit()
-            .remove();
+            .merge(layer);
 
         if (enabled) {
             if (mapillary && ~~context.map().zoom() >= minZoom) {
                 editOn();
                 update();
-                mapillary.loadSigns(context, projection, layer.dimensions());
+                mapillary.loadSigns(context, projection);
             } else {
                 editOff();
             }
         }
     }
 
+
     drawSigns.enabled = function(_) {
-        if (!arguments.length) return MapillarySigns.enabled;
-        MapillarySigns.enabled = _;
-        if (MapillarySigns.enabled) {
+        if (!arguments.length) return svgMapillarySigns.enabled;
+        svgMapillarySigns.enabled = _;
+        if (svgMapillarySigns.enabled) {
             showLayer();
         } else {
             hideLayer();
         }
-        dispatch.change();
+        dispatch.call('change');
         return this;
     };
+
 
     drawSigns.supported = function() {
         var mapillary = getMapillary();
         return (mapillary && mapillary.signsSupported());
     };
 
-    drawSigns.dimensions = function(_) {
-        if (!arguments.length) return layer.dimensions();
-        layer.dimensions(_);
-        return this;
-    };
 
     init();
     return drawSigns;

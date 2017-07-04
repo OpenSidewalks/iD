@@ -1,19 +1,28 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
-export function Attribution(context) {
+
+
+export function uiAttribution(context) {
     var selection;
+
 
     function attribution(data, klass) {
         var div = selection.selectAll('.' + klass)
             .data([0]);
 
-        div.enter()
+        div = div.enter()
             .append('div')
-            .attr('class', klass);
+            .attr('class', klass)
+            .merge(div);
+
 
         var background = div.selectAll('.attribution')
             .data(data, function(d) { return d.name(); });
 
-        background.enter()
+        background.exit()
+            .remove();
+
+        background = background.enter()
             .append('span')
             .attr('class', 'attribution')
             .each(function(d) {
@@ -39,10 +48,9 @@ export function Attribution(context) {
                     d3.select(this)
                         .text(source);
                 }
-            });
+            })
+            .merge(background);
 
-        background.exit()
-            .remove();
 
         var copyright = background.selectAll('.copyright-notice')
             .data(function(d) {
@@ -50,15 +58,18 @@ export function Attribution(context) {
                 return notice ? [notice] : [];
             });
 
-        copyright.enter()
-            .append('span')
-            .attr('class', 'copyright-notice');
-
-        copyright.text(String);
-
         copyright.exit()
             .remove();
+
+        copyright = copyright.enter()
+            .append('span')
+            .attr('class', 'copyright-notice')
+            .merge(copyright);
+
+        copyright
+            .text(String);
     }
+
 
     function update() {
         attribution([context.background().baseLayerSource()], 'base-layer-attribution');
@@ -66,6 +77,7 @@ export function Attribution(context) {
             return s.validZoom(context.map().zoom());
         }), 'overlay-layer-attribution');
     }
+
 
     return function(select) {
         selection = select;

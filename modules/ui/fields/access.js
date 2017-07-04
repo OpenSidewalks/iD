@@ -1,6 +1,14 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
+import { d3combobox } from '../../lib/d3.combobox.js';
+import {
+    utilGetSetValue,
+    utilNoAuto,
+    utilRebind
+} from '../../util';
 
-export function access(field) {
+
+export function uiFieldAccess(field, context) {
     var dispatch = d3.dispatch('change'),
         items;
 
@@ -8,47 +16,66 @@ export function access(field) {
         var wrap = selection.selectAll('.preset-input-wrap')
             .data([0]);
 
-        wrap.enter().append('div')
+        wrap = wrap.enter()
+            .append('div')
             .attr('class', 'cf preset-input-wrap')
-            .append('ul');
+            .append('ul')
+            .merge(wrap);
 
-        items = wrap.select('ul').selectAll('li')
+        var list = wrap.selectAll('ul')
+            .data([0]);
+
+        list = list.enter()
+            .append('ul')
+            .merge(list);
+
+
+        items = list.selectAll('li')
             .data(field.keys);
 
         // Enter
-
-        var enter = items.enter().append('li')
+        var enter = items.enter()
+            .append('li')
             .attr('class', function(d) { return 'cf preset-access-' + d; });
 
-        enter.append('span')
+        enter
+            .append('span')
             .attr('class', 'col6 label preset-label-access')
             .attr('for', function(d) { return 'preset-input-access-' + d; })
             .text(function(d) { return field.t('types.' + d); });
 
-        enter.append('div')
+        enter
+            .append('div')
             .attr('class', 'col6 preset-input-access-wrap')
             .append('input')
             .attr('type', 'text')
             .attr('class', 'preset-input-access')
             .attr('id', function(d) { return 'preset-input-access-' + d; })
+            .call(utilNoAuto)
             .each(function(d) {
                 d3.select(this)
-                    .call(d3.combobox()
-                        .data(access.options(d)));
+                    .call(d3combobox()
+                        .container(context.container())
+                        .data(access.options(d))
+                    );
             });
 
+
         // Update
+        items = items.merge(enter);
 
         wrap.selectAll('.preset-input-access')
             .on('change', change)
             .on('blur', change);
     }
 
+
     function change(d) {
         var tag = {};
-        tag[d] = d3.select(this).value() || undefined;
-        dispatch.change(tag);
+        tag[d] = utilGetSetValue(d3.select(this)) || undefined;
+        dispatch.call('change', this, tag);
     }
+
 
     access.options = function(type) {
         var options = ['no', 'permissive', 'private', 'destination'];
@@ -69,6 +96,7 @@ export function access(field) {
             };
         });
     };
+
 
     var placeholders = {
         footway: {
@@ -173,15 +201,16 @@ export function access(field) {
         }
     };
 
+
     access.tags = function(tags) {
-        items.selectAll('.preset-input-access')
-            .value(function(d) { return tags[d] || ''; })
+        utilGetSetValue(items.selectAll('.preset-input-access'),
+            function(d) { return tags[d] || ''; })
             .attr('placeholder', function() {
                 return tags.access ? tags.access : field.placeholder();
             });
 
-        // items.selectAll('#preset-input-access-access')
-        //     .attr('placeholder', 'yes');
+        items.selectAll('#preset-input-access-access')
+            .attr('placeholder', 'yes');
 
         _.forEach(placeholders[tags.highway], function(v, k) {
             items.selectAll('#preset-input-access-' + k)
@@ -189,10 +218,12 @@ export function access(field) {
         });
     };
 
+
     access.focus = function() {
         items.selectAll('.preset-input-access')
             .node().focus();
     };
 
-    return d3.rebind(access, dispatch, 'on');
+
+    return utilRebind(access, dispatch, 'on');
 }

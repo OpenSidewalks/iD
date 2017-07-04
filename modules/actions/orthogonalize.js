@@ -1,35 +1,41 @@
 import _ from 'lodash';
-import { DeleteNode } from './delete_node';
-import { euclideanDistance } from '../geo/index';
+import { actionDeleteNode } from './delete_node';
+import { geoEuclideanDistance, geoInterp } from '../geo/index';
+
 /*
  * Based on https://github.com/openstreetmap/potlatch2/blob/master/net/systemeD/potlatch2/tools/Quadrilateralise.as
  */
-
-export function Orthogonalize(wayId, projection) {
+export function actionOrthogonalize(wayId, projection) {
     var threshold = 12, // degrees within right or straight to alter
         lowerThreshold = Math.cos((90 - threshold) * Math.PI / 180),
         upperThreshold = Math.cos(threshold * Math.PI / 180);
 
-    var action = function(graph) {
+
+    var action = function(graph, t) {
+        if (t === null || !isFinite(t)) t = 1;
+        t = Math.min(Math.max(+t, 0), 1);
+
         var way = graph.entity(wayId),
             nodes = graph.childNodes(way),
             points = _.uniq(nodes).map(function(n) { return projection(n.loc); }),
             corner = {i: 0, dotp: 1},
             epsilon = 1e-4,
-            i, j, score, motions;
+            node, loc, score, motions, i, j;
 
-        if (nodes.length === 4) {
+        if (points.length === 3) {   // move only one vertex for right triangle
             for (i = 0; i < 1000; i++) {
                 motions = points.map(calcMotion);
-                points[corner.i] = addPoints(points[corner.i],motions[corner.i]);
+                points[corner.i] = addPoints(points[corner.i], motions[corner.i]);
                 score = corner.dotp;
                 if (score < epsilon) {
                     break;
                 }
             }
 
-            graph = graph.replace(graph.entity(nodes[corner.i].id)
-                .move(projection.invert(points[corner.i])));
+            node = graph.entity(nodes[corner.i].id);
+            loc = projection.invert(points[corner.i]);
+            graph = graph.replace(node.move(geoInterp(node.loc, loc, t)));
+
         } else {
             var best,
                 originalPoints = _.clone(points);
@@ -55,30 +61,31 @@ export function Orthogonalize(wayId, projection) {
             for (i = 0; i < points.length; i++) {
                 // only move the points that actually moved
                 if (originalPoints[i][0] !== points[i][0] || originalPoints[i][1] !== points[i][1]) {
-                    graph = graph.replace(graph.entity(nodes[i].id)
-                        .move(projection.invert(points[i])));
+                    loc = projection.invert(points[i]);
+                    node = graph.entity(nodes[i].id);
+                    graph = graph.replace(node.move(geoInterp(node.loc, loc, t)));
                 }
             }
 
             // remove empty nodes on straight sections
-            for (i = 0; i < points.length; i++) {
-                var node = nodes[i];
+            for (i = 0; t === 1 && i < points.length; i++) {
+                node = graph.entity(nodes[i].id);
 
                 if (graph.parentWays(node).length > 1 ||
                     graph.parentRelations(node).length ||
                     node.hasInterestingTags()) {
-
                     continue;
                 }
 
                 var dotp = normalizedDotProduct(i, points);
                 if (dotp < -1 + epsilon) {
-                    graph = DeleteNode(nodes[i].id)(graph);
+                    graph = actionDeleteNode(node.id)(graph);
                 }
             }
         }
 
         return graph;
+
 
         function calcMotion(b, i, array) {
             var a = array[(i - 1 + array.length) % array.length],
@@ -87,7 +94,7 @@ export function Orthogonalize(wayId, projection) {
                 q = subtractPoints(c, b),
                 scale, dotp;
 
-            scale = 2 * Math.min(euclideanDistance(p, [0, 0]), euclideanDistance(q, [0, 0]));
+            scale = 2 * Math.min(geoEuclideanDistance(p, [0, 0]), geoEuclideanDistance(q, [0, 0]));
             p = normalizePoint(p, 1.0);
             q = normalizePoint(q, 1.0);
 
@@ -107,6 +114,7 @@ export function Orthogonalize(wayId, projection) {
         }
     };
 
+
     function squareness(points) {
         return points.reduce(function(sum, val, i, array) {
             var dotp = normalizedDotProduct(i, array);
@@ -115,6 +123,7 @@ export function Orthogonalize(wayId, projection) {
             return sum + 2.0 * Math.min(Math.abs(dotp - 1.0), Math.min(Math.abs(dotp), Math.abs(dotp + 1)));
         }, 0);
     }
+
 
     function normalizedDotProduct(i, points) {
         var a = points[(i - 1 + points.length) % points.length],
@@ -129,13 +138,16 @@ export function Orthogonalize(wayId, projection) {
         return p[0] * q[0] + p[1] * q[1];
     }
 
+
     function subtractPoints(a, b) {
         return [a[0] - b[0], a[1] - b[1]];
     }
 
+
     function addPoints(a, b) {
         return [a[0] + b[0], a[1] + b[1]];
     }
+
 
     function normalizePoint(point, scale) {
         var vector = [0, 0];
@@ -151,6 +163,7 @@ export function Orthogonalize(wayId, projection) {
         return vector;
     }
 
+
     function filterDotProduct(dotp) {
         if (lowerThreshold > Math.abs(dotp) || Math.abs(dotp) > upperThreshold) {
             return dotp;
@@ -158,6 +171,7 @@ export function Orthogonalize(wayId, projection) {
 
         return 0;
     }
+
 
     action.disabled = function(graph) {
         var way = graph.entity(wayId),
@@ -170,6 +184,10 @@ export function Orthogonalize(wayId, projection) {
 
         return 'not_squarish';
     };
+
+
+    action.transitionable = true;
+
 
     return action;
 }

@@ -11,8 +11,9 @@
         "place": "suburb"
     },
     "terms": [
-        "Boro",
-        "Quarter"
+        "boro",
+        "borough",
+        "quarter"
     ],
-    "name": "Borough"
+    "name": "Borough / Suburb"
 }

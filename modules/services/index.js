@@ -1,6 +1,15 @@
-import * as mapillary from './mapillary';
-import * as nominatim from './nominatim';
-import * as taginfo from './taginfo';
-import * as wikidata from './wikidata';
-import * as wikipedia from './wikipedia';
-export { mapillary, taginfo, nominatim, wikidata, wikipedia};
+import serviceMapillary from './mapillary';
+import serviceNominatim from './nominatim';
+import serviceOsm from './osm';
+import serviceTaginfo from './taginfo';
+import serviceWikidata from './wikidata';
+import serviceWikipedia from './wikipedia';
+
+export var services = {
+    mapillary: serviceMapillary,
+    geocoder: serviceNominatim,
+    osm: serviceOsm,
+    taginfo: serviceTaginfo,
+    wikidata: serviceWikidata,
+    wikipedia: serviceWikipedia
+};

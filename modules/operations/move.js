@@ -1,22 +1,27 @@
-import { t } from '../util/locale';
 import _ from 'lodash';
-import { Extent } from '../geo/index';
-import { Move as MoveAction } from '../actions/index';
-import { Move as MoveMode } from '../modes/index';
+import { t } from '../util/locale';
+import { behaviorOperation } from '../behavior/index';
+import { geoExtent } from '../geo/index';
+import { modeMove } from '../modes/index';
 
-export function Move(selectedIDs, context) {
-    var extent = selectedIDs.reduce(function(extent, id) {
+
+export function operationMove(selectedIDs, context) {
+    var multi = (selectedIDs.length === 1 ? 'single' : 'multiple'),
+        extent = selectedIDs.reduce(function(extent, id) {
             return extent.extend(context.entity(id).extent(context.graph()));
-        }, Extent());
+        }, geoExtent());
+
 
     var operation = function() {
-        context.enter(MoveMode(context, selectedIDs));
+        context.enter(modeMove(context, selectedIDs));
     };
+
 
     operation.available = function() {
         return selectedIDs.length > 1 ||
             context.entity(selectedIDs[0]).type !== 'node';
     };
+
 
     operation.disabled = function() {
         var reason;
@@ -24,20 +29,37 @@ export function Move(selectedIDs, context) {
             reason = 'too_large';
         } else if (_.some(selectedIDs, context.hasHiddenConnections)) {
             reason = 'connected_to_hidden';
+        } else if (_.some(selectedIDs, incompleteRelation)) {
+            reason = 'incomplete_relation';
         }
-        return MoveAction(selectedIDs).disabled(context.graph()) || reason;
+        return reason;
+
+        function incompleteRelation(id) {
+            var entity = context.entity(id);
+            return entity.type === 'relation' && !entity.isComplete(context.graph());
+        }
     };
+
 
     operation.tooltip = function() {
         var disable = operation.disabled();
         return disable ?
-            t('operations.move.' + disable) :
-            t('operations.move.description');
+            t('operations.move.' + disable + '.' + multi) :
+            t('operations.move.description.' + multi);
     };
+
+
+    operation.annotation = function() {
+        return selectedIDs.length === 1 ?
+            t('operations.move.annotation.' + context.geometry(selectedIDs[0])) :
+            t('operations.move.annotation.multiple');
+    };
+
 
     operation.id = 'move';
     operation.keys = [t('operations.move.key')];
     operation.title = t('operations.move.title');
+    operation.behavior = behaviorOperation(context).which(operation);
 
     return operation;
 }

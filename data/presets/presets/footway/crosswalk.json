@@ -16,6 +16,10 @@
         "crossing": "zebra",
         "project":"OpenSidewalks"
     },
+    "reference": {
+        "key": "highway",
+        "value": "crossing"
+    },
     "terms": [
         "zebra crossing"
     ],

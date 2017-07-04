@@ -1,10 +1,15 @@
-import { t } from '../util/locale';
-import { Icon } from '../svg/index';
-import { intro } from './intro';
+import * as d3 from 'd3';
 import marked from 'marked';
-import { tooltipHtml } from './tooltipHtml';
+import { d3keybinding } from '../lib/d3.keybinding.js';
+import { t, textDirection } from '../util/locale';
+import { svgIcon } from '../svg';
+import { uiIntro } from './intro';
+import { uiShortcuts } from './shortcuts';
+import { uiTooltipHtml } from './tooltipHtml';
+import { tooltip } from '../util/tooltip';
 
-export function Help(context) {
+
+export function uiHelp(context) {
     var key = 'H';
 
     var docKeys = [
@@ -26,17 +31,20 @@ export function Help(context) {
         };
     });
 
+
     function help(selection) {
 
         function hide() {
             setVisible(false);
         }
 
+
         function toggle() {
             if (d3.event) d3.event.preventDefault();
-            tooltip.hide(button);
+            tooltipBehavior.hide(button);
             setVisible(!button.classed('active'));
         }
+
 
         function setVisible(show) {
             if (show !== shown) {
@@ -57,7 +65,7 @@ export function Help(context) {
                         .transition()
                         .duration(200)
                         .style('right', '-500px')
-                        .each('end', function() {
+                        .on('end', function() {
                             d3.select(this).style('display', 'none');
                         });
                     selection.on('mousedown.help-inside', null);
@@ -65,9 +73,12 @@ export function Help(context) {
             }
         }
 
+
         function clickHelp(d, i) {
+            var rtl = (textDirection === 'rtl');
             pane.property('scrollTop', 0);
             doctitle.html(d.title);
+
             body.html(d.html);
             body.selectAll('a')
                 .attr('target', '_blank');
@@ -76,42 +87,71 @@ export function Help(context) {
             });
 
             nav.html('');
-
-            if (i > 0) {
-                var prevLink = nav.append('a')
-                    .attr('class', 'previous')
-                    .on('click', function() {
-                        clickHelp(docs[i - 1], i - 1);
-                    });
-                prevLink.append('span').html('&#9668; ' + docs[i - 1].title);
+            if (rtl) {
+                nav.call(drawNext).call(drawPrevious);
+            } else {
+                nav.call(drawPrevious).call(drawNext);
             }
-            if (i < docs.length - 1) {
-                var nextLink = nav.append('a')
-                    .attr('class', 'next')
-                    .on('click', function() {
-                        clickHelp(docs[i + 1], i + 1);
-                    });
-                nextLink.append('span').html(docs[i + 1].title + ' &#9658;');
+
+
+            function drawNext(selection) {
+                if (i < docs.length - 1) {
+                    var nextLink = selection
+                        .append('a')
+                        .attr('class', 'next')
+                        .on('click', function() {
+                            clickHelp(docs[i + 1], i + 1);
+                        });
+
+                    nextLink
+                        .append('span')
+                        .text(docs[i + 1].title)
+                        .call(svgIcon((rtl ? '#icon-backward' : '#icon-forward'), 'inline'));
+                }
+            }
+
+
+            function drawPrevious(selection) {
+                if (i > 0) {
+                    var prevLink = selection
+                        .append('a')
+                        .attr('class', 'previous')
+                        .on('click', function() {
+                            clickHelp(docs[i - 1], i - 1);
+                        });
+
+                    prevLink
+                        .call(svgIcon((rtl ? '#icon-forward' : '#icon-backward'), 'inline'))
+                        .append('span')
+                        .text(docs[i - 1].title);
+                }
             }
         }
 
+
         function clickWalkthrough() {
-            d3.select(document.body).call(intro(context));
+            if (context.inIntro()) return;
+            context.container().call(uiIntro(context));
             setVisible(false);
+        }
+
+
+        function clickShortcuts() {
+            context.container().call(uiShortcuts(context), true);
         }
 
 
         var pane = selection.append('div')
                 .attr('class', 'help-wrap map-overlay fillL col5 content hide'),
-            tooltip = bootstrap.tooltip()
-                .placement('left')
+            tooltipBehavior = tooltip()
+                .placement((textDirection === 'rtl') ? 'right' : 'left')
                 .html(true)
-                .title(tooltipHtml(t('help.title'), key)),
+                .title(uiTooltipHtml(t('help.title'), key)),
             button = selection.append('button')
                 .attr('tabindex', -1)
                 .on('click', toggle)
-                .call(Icon('#icon-help', 'light'))
-                .call(tooltip),
+                .call(svgIcon('#icon-help', 'light'))
+                .call(tooltipBehavior),
             shown = false;
 
 
@@ -126,11 +166,37 @@ export function Help(context) {
             .html(function(d) { return d.title; })
             .on('click', clickHelp);
 
-        toc.append('li')
-            .attr('class','walkthrough')
+        var shortcuts = toc
+            .append('li')
+            .attr('class', 'shortcuts')
+            .call(tooltip()
+                .html(true)
+                .title(uiTooltipHtml(t('shortcuts.tooltip'), '?'))
+                .placement('top')
+            )
             .append('a')
-            .text(t('splash.walkthrough'))
+            .on('click', clickShortcuts);
+
+        shortcuts
+            .append('div')
+            .text(t('shortcuts.title'));
+
+        var walkthrough = toc
+            .append('li')
+            .attr('class', 'walkthrough')
+            .append('a')
             .on('click', clickWalkthrough);
+
+        walkthrough
+            .append('svg')
+            .attr('class', 'logo logo-walkthrough')
+            .append('use')
+            .attr('xlink:href', '#logo-walkthrough');
+
+        walkthrough
+            .append('div')
+            .text(t('splash.walkthrough'));
+
 
         var content = pane.append('div')
             .attr('class', 'left-content');
@@ -146,7 +212,7 @@ export function Help(context) {
 
         clickHelp(docs[0], 0);
 
-        var keybinding = d3.keybinding('help')
+        var keybinding = d3keybinding('help')
             .on(key, toggle)
             .on('B', hide)
             .on('F', hide);

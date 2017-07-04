@@ -1,5 +1,9 @@
 import _ from 'lodash';
-export function DiscardTags(difference) {
+import { dataDiscarded } from '../../data/index';
+
+
+export function actionDiscardTags(difference) {
+
     return function(graph) {
         function discardTags(entity) {
             if (!_.isEmpty(entity.tags)) {
@@ -9,7 +13,7 @@ export function DiscardTags(difference) {
                 });
 
                 graph = graph.replace(entity.update({
-                    tags: _.omit(tags, iD.data.discarded)
+                    tags: _.omit(tags, dataDiscarded)
                 }));
             }
         }

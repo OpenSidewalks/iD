@@ -3,7 +3,7 @@ describe('iD.History', function () {
         action = function() { return iD.Graph(); };
 
     beforeEach(function () {
-        context = iD.Context(window);
+        context = iD.Context();
         history = context.history();
         spy = sinon.spy();
         // clear lock
@@ -51,6 +51,7 @@ describe('iD.History', function () {
             history.on('change', spy);
             var difference = history.perform(action);
             expect(spy).to.have.been.calledWith(difference);
+            expect(spy.callCount).to.eql(1);
         });
 
         it('performs multiple actions', function () {
@@ -60,6 +61,17 @@ describe('iD.History', function () {
             expect(action1).to.have.been.called;
             expect(action2).to.have.been.called;
             expect(history.undoAnnotation()).to.equal('annotation');
+        });
+
+        it('performs transitionable actions in a transition', function (done) {
+            var action1 = function() { return iD.Graph(); };
+            action1.transitionable = true;
+            history.on('change', spy);
+            history.perform(action1);
+            window.setTimeout(function() {
+                expect(spy.callCount).to.be.above(2);
+                done();
+            }, 300);
         });
     });
 
@@ -119,6 +131,32 @@ describe('iD.History', function () {
             history.on('change', spy);
             var difference = history.pop();
             expect(spy).to.have.been.calledWith(difference);
+        });
+
+        it('pops n times', function () {
+            history.perform(action, 'annotation1');
+            history.perform(action, 'annotation2');
+            history.perform(action, 'annotation3');
+            history.pop(2);
+            expect(history.undoAnnotation()).to.equal('annotation1');
+        });
+
+        it('pops 0 times', function () {
+            history.perform(action, 'annotation1');
+            history.perform(action, 'annotation2');
+            history.perform(action, 'annotation3');
+            history.pop(0);
+            expect(history.undoAnnotation()).to.equal('annotation3');
+        });
+
+        it('pops 1 time if argument is invalid', function () {
+            history.perform(action, 'annotation1');
+            history.perform(action, 'annotation2');
+            history.perform(action, 'annotation3');
+            history.pop('foo');
+            expect(history.undoAnnotation()).to.equal('annotation2');
+            history.pop(-1);
+            expect(history.undoAnnotation()).to.equal('annotation1');
         });
     });
 
@@ -202,12 +240,21 @@ describe('iD.History', function () {
             expect(history.redo().changes()).to.eql({});
         });
 
-        it('emits an redone event', function () {
-            history.perform(action);
+        it('does redo into an annotated state', function () {
+            history.perform(action, 'annotation');
+            history.on('redone', spy);
             history.undo();
-            history.on('change', spy);
             history.redo();
+            expect(history.undoAnnotation()).to.equal('annotation');
             expect(spy).to.have.been.called;
+        });
+
+        it('does not redo into a non-annotated state', function () {
+            history.perform(action);
+            history.on('redone', spy);
+            history.undo();
+            history.redo();
+            expect(spy).not.to.have.been.called;
         });
 
         it('emits a change event', function () {
@@ -271,11 +318,41 @@ describe('iD.History', function () {
         });
     });
 
+    describe('#checkpoint', function () {
+        it('saves and resets to checkpoints', function () {
+            history.perform(action, 'annotation1');
+            history.perform(action, 'annotation2');
+            history.perform(action, 'annotation3');
+            history.checkpoint('check1');
+            history.perform(action, 'annotation4');
+            history.perform(action, 'annotation5');
+            history.checkpoint('check2');
+            history.perform(action, 'annotation6');
+            history.perform(action, 'annotation7');
+            history.perform(action, 'annotation8');
+
+            history.reset('check1');
+            expect(history.undoAnnotation()).to.equal('annotation3');
+
+            history.reset('check2');
+            expect(history.undoAnnotation()).to.equal('annotation5');
+
+            history.reset('check1');
+            expect(history.undoAnnotation()).to.equal('annotation3');
+        });
+
+        it('emits a change event', function () {
+            history.on('change', spy);
+            history.reset();
+            expect(spy).to.have.been.called;
+        });
+    });
+
     describe('#toJSON', function() {
         it('doesn\'t generate unsaveable changes', function() {
             var node_1 = iD.Node({id: 'n-1'});
-            history.perform(iD.actions.AddEntity(node_1));
-            history.perform(iD.actions.DeleteNode('n-1'));
+            history.perform(iD.actionAddEntity(node_1));
+            history.perform(iD.actionDeleteNode('n-1'));
             expect(history.toJSON()).to.be.not.ok;
         });
 
@@ -285,9 +362,9 @@ describe('iD.History', function () {
                 node2 = iD.Node({id: 'n2'}),
                 node3 = iD.Node({id: 'n3'});
             history.merge([node1, node2, node3]);
-            history.perform(iD.actions.AddEntity(node_1)); // addition
-            history.perform(iD.actions.ChangeTags('n2', {k: 'v'})); // modification
-            history.perform(iD.actions.DeleteNode('n3')); // deletion
+            history.perform(iD.actionAddEntity(node_1)); // addition
+            history.perform(iD.actionChangeTags('n2', {k: 'v'})); // modification
+            history.perform(iD.actionDeleteNode('n3')); // deletion
             var json = JSON.parse(history.toJSON());
             expect(json.version).to.eql(3);
             expect( _.isEqual(json.entities, [node_1, node2.update({tags: {k: 'v'}})]) ).to.be.ok;

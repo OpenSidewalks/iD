@@ -1,17 +1,21 @@
-import { t } from '../util/locale';
 import _ from 'lodash';
-import { Orthogonalize as OrthogonalizeAction } from '../actions/index';
-export function Orthogonalize(selectedIDs, context) {
+import { t } from '../util/locale';
+import { actionOrthogonalize } from '../actions/index';
+import { behaviorOperation } from '../behavior/index';
+
+
+export function operationOrthogonalize(selectedIDs, context) {
     var entityId = selectedIDs[0],
         entity = context.entity(entityId),
         extent = entity.extent(context.graph()),
         geometry = context.geometry(entityId),
-        action = OrthogonalizeAction(entityId, context.projection);
+        action = actionOrthogonalize(entityId, context.projection);
+
 
     var operation = function() {
-        var annotation = t('operations.orthogonalize.annotation.' + geometry);
-        context.perform(action, annotation);
+        context.perform(action, operation.annotation());
     };
+
 
     operation.available = function() {
         return selectedIDs.length === 1 &&
@@ -19,6 +23,7 @@ export function Orthogonalize(selectedIDs, context) {
             entity.isClosed() &&
             _.uniq(entity.nodes).length > 2;
     };
+
 
     operation.disabled = function() {
         var reason;
@@ -30,6 +35,7 @@ export function Orthogonalize(selectedIDs, context) {
         return action.disabled(context.graph()) || reason;
     };
 
+
     operation.tooltip = function() {
         var disable = operation.disabled();
         return disable ?
@@ -37,9 +43,16 @@ export function Orthogonalize(selectedIDs, context) {
             t('operations.orthogonalize.description.' + geometry);
     };
 
+
+    operation.annotation = function() {
+        return t('operations.orthogonalize.annotation.' + geometry);
+    };
+
+
     operation.id = 'orthogonalize';
     operation.keys = [t('operations.orthogonalize.key')];
     operation.title = t('operations.orthogonalize.title');
+    operation.behavior = behaviorOperation(context).which(operation);
 
     return operation;
 }

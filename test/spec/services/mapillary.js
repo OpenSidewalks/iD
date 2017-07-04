@@ -1,31 +1,66 @@
-describe('iD.services.mapillary', function() {
+describe('iD.serviceMapillary', function() {
     var dimensions = [64, 64],
-        context, server, mapillary;
+        ua = navigator.userAgent,
+        isPhantom = (navigator.userAgent.match(/PhantomJS/) !== null),
+        uaMock = function () { return ua; },
+        context, server, mapillary, orig;
+
 
     beforeEach(function() {
-        context = iD.Context(window).assetPath('../dist/');
-        context.projection.scale(667544.214430109);  // z14
-        context.projection.translate([-116508, 0]);  // 10,0
+        context = iD.Context().assetPath('../dist/');
+        context.projection
+            .scale(667544.214430109)  // z14
+            .translate([-116508, 0])  // 10,0
+            .clipExtent([[0,0], dimensions]);
 
         server = sinon.fakeServer.create();
-        mapillary = iD.services.mapillary.init();
+        mapillary = iD.services.mapillary;
         mapillary.reset();
+
+        /* eslint-disable no-global-assign */
+        /* mock userAgent */
+        if (isPhantom) {
+            orig = navigator;
+            navigator = Object.create(orig, { userAgent: { get: uaMock }});
+        } else {
+            orig = navigator.__lookupGetter__('userAgent');
+            navigator.__defineGetter__('userAgent', uaMock);
+        }
     });
 
     afterEach(function() {
         server.restore();
+
+        /* restore userAgent */
+        if (isPhantom) {
+            navigator = orig;
+        } else {
+            navigator.__defineGetter__('userAgent', orig);
+        }
+        /* eslint-enable no-global-assign */
     });
 
 
-    describe('Mapillary service', function() {
+    describe('#init', function() {
         it('Initializes cache one time', function() {
-            var cache = iD.services.mapillary.getMapillary().cache;
+            var cache = mapillary.cache();
             expect(cache).to.have.property('images');
             expect(cache).to.have.property('signs');
 
-            iD.services.mapillary.init();
-            var cache2 = iD.services.mapillary.getMapillary().cache;
+            mapillary.init();
+            var cache2 = mapillary.cache();
             expect(cache).to.equal(cache2);
+        });
+    });
+
+    describe('#reset', function() {
+        it('resets cache and image', function() {
+            mapillary.cache({foo: 'bar'});
+            mapillary.selectedImage('baz');
+
+            mapillary.reset();
+            expect(mapillary.cache()).to.not.have.property('foo');
+            expect(mapillary.selectedImage()).to.be.null;
         });
     });
 
@@ -33,9 +68,9 @@ describe('iD.services.mapillary', function() {
         it('fires loadedImages when images are loaded', function() {
             var spy = sinon.spy();
             mapillary.on('loadedImages', spy);
-            mapillary.loadImages(context.projection, dimensions);
+            mapillary.loadImages(context.projection);
 
-            var match = /search\/im\/geojson/,
+            var match = /images/,
                 features = [{
                     type: 'Feature',
                     geometry: { type: 'Point', coordinates: [10,0] },
@@ -54,9 +89,9 @@ describe('iD.services.mapillary', function() {
             var spy = sinon.spy();
             context.projection.translate([0,0]);
             mapillary.on('loadedImages', spy);
-            mapillary.loadImages(context.projection, dimensions);
+            mapillary.loadImages(context.projection);
 
-            var match = /search\/im\/geojson/,
+            var match = /images/,
                 features = [{
                     type: 'Feature',
                     geometry: { type: 'Point', coordinates: [0,0] },
@@ -74,7 +109,7 @@ describe('iD.services.mapillary', function() {
         it.skip('loads multiple pages of image results', function() {
             var spy = sinon.spy();
             mapillary.on('loadedImages', spy);
-            mapillary.loadImages(context.projection, dimensions);
+            mapillary.loadImages(context.projection);
 
             var features0 = [],
                 features1 = [],
@@ -112,53 +147,44 @@ describe('iD.services.mapillary', function() {
 
     describe('#loadSigns', function() {
        it('loads sign_defs', function() {
-            mapillary.loadSigns(context, context.projection, dimensions);
+            mapillary.loadSigns(context, context.projection);
 
-            var base = 'regulatory--maximum-speed-limit-65--',
-                match = /traffico\/string-maps\/(\w+)-map.json/;
+            var sign = 'regulatory--maximum-speed-limit-65--g1',
+                match = /img\/traffic-signs\/traffic-signs.json/;
 
-            server.respondWith('GET', match, function (xhr, id) {
+            server.respondWith('GET', match, function (xhr) {
                 xhr.respond(200, { 'Content-Type': 'application/json' },
-                    '{ "' + base + id + '": true }');
+                    '{ "' + sign + '": { "height": 24, "pixelRatio": 1, "width": 24, "x": 576, "y": 528} }');
             });
             server.respond();
 
-            var sign_defs = iD.services.mapillary.getMapillary().sign_defs;
+            var sign_defs = mapillary.signDefs();
 
-            expect(sign_defs).to.have.property('au')
+            expect(sign_defs).to.have.property('regulatory--maximum-speed-limit-65--g1')
                 .that.is.an('object')
-                .that.deep.equals({'regulatory--maximum-speed-limit-65--au': true});
-            expect(sign_defs).to.have.property('br')
-                .that.is.an('object')
-                .that.deep.equals({'regulatory--maximum-speed-limit-65--br': true});
-            expect(sign_defs).to.have.property('ca')
-                .that.is.an('object')
-                .that.deep.equals({'regulatory--maximum-speed-limit-65--ca': true});
-            expect(sign_defs).to.have.property('eu')
-                .that.is.an('object')
-                .that.deep.equals({'regulatory--maximum-speed-limit-65--de': true});
-            expect(sign_defs).to.have.property('us')
-                .that.is.an('object')
-                .that.deep.equals({'regulatory--maximum-speed-limit-65--us': true});
+                .that.deep.equals({
+                    height: 24,
+                    pixelRatio: 1,
+                    width: 24,
+                    x: 576,
+                    y: 528
+                });
         });
 
         it('fires loadedSigns when signs are loaded', function() {
             var spy = sinon.spy();
             mapillary.on('loadedSigns', spy);
-            mapillary.loadSigns(context, context.projection, dimensions);
+            mapillary.loadSigns(context, context.projection);
 
-            var match = /search\/im\/geojson\/or/,
-                rects = [{
-                    'package': 'trafficsign_us_3.0',
-                    rect: [ 0.805, 0.463, 0.833, 0.502 ],
-                    length: 4,
-                    score: '1.27',
-                    type: 'regulatory--maximum-speed-limit-65--us'
+            var match = /objects/,
+                detections = [{
+                    detection_key: '0',
+                    image_key: '0'
                 }],
                 features = [{
                     type: 'Feature',
                     geometry: { type: 'Point', coordinates: [10,0] },
-                    properties: { rects: rects, key: '0' }
+                    properties: { detections: detections, key: '0', value: 'not-in-set' }
                 }],
                 response = { type: 'FeatureCollection', features: features };
 
@@ -173,20 +199,17 @@ describe('iD.services.mapillary', function() {
             var spy = sinon.spy();
             context.projection.translate([0,0]);
             mapillary.on('loadedSigns', spy);
-            mapillary.loadSigns(context, context.projection, dimensions);
+            mapillary.loadSigns(context, context.projection);
 
-            var match = /search\/im\/geojson\/or/,
-                rects = [{
-                    'package': 'trafficsign_us_3.0',
-                    rect: [ 0.805, 0.463, 0.833, 0.502 ],
-                    length: 4,
-                    score: '1.27',
-                    type: 'regulatory--maximum-speed-limit-65--us'
+            var match = /objects/,
+                detections = [{
+                    detection_key: '0',
+                    image_key: '0'
                 }],
                 features = [{
                     type: 'Feature',
                     geometry: { type: 'Point', coordinates: [0,0] },
-                    properties: { rects: rects, key: '0' }
+                    properties: { detections: detections, key: '0', value: 'not-in-set' }
                 }],
                 response = { type: 'FeatureCollection', features: features };
 
@@ -200,7 +223,7 @@ describe('iD.services.mapillary', function() {
         it.skip('loads multiple pages of signs results', function() {
             var spy = sinon.spy();
             mapillary.on('loadedSigns', spy);
-            mapillary.loadSigns(context, context.projection, dimensions);
+            mapillary.loadSigns(context, context.projection);
 
             var rects = [{
                     'package': 'trafficsign_us_3.0',
@@ -252,8 +275,8 @@ describe('iD.services.mapillary', function() {
                 { minX: 10, minY: 1, maxX: 10, maxY: 1, data: { key: '2', loc: [10,1], ca: 90 } }
             ];
 
-            iD.services.mapillary.getMapillary().cache.images.rtree.load(features);
-            var res = mapillary.images(context.projection, dimensions);
+            mapillary.cache().images.rtree.load(features);
+            var res = mapillary.images(context.projection);
 
             expect(res).to.deep.eql([
                 { key: '0', loc: [10,0], ca: 90 },
@@ -270,8 +293,8 @@ describe('iD.services.mapillary', function() {
                 { minX: 10, minY: 0, maxX: 10, maxY: 0, data: { key: '4', loc: [10,0], ca: 90 } }
             ];
 
-            iD.services.mapillary.getMapillary().cache.images.rtree.load(features);
-            var res = mapillary.images(context.projection, dimensions);
+            mapillary.cache().images.rtree.load(features);
+            var res = mapillary.images(context.projection);
             expect(res).to.have.length.of.at.most(3);
         });
     });
@@ -291,8 +314,8 @@ describe('iD.services.mapillary', function() {
                     { minX: 10, minY: 1, maxX: 10, maxY: 1, data: { key: '2', loc: [10,1], signs: signs } }
                 ];
 
-            iD.services.mapillary.getMapillary().cache.signs.rtree.load(features);
-            var res = mapillary.signs(context.projection, dimensions);
+            mapillary.cache().signs.rtree.load(features);
+            var res = mapillary.signs(context.projection);
 
             expect(res).to.deep.eql([
                 { key: '0', loc: [10,0], signs: signs },
@@ -316,72 +339,68 @@ describe('iD.services.mapillary', function() {
                     { minX: 10, minY: 0, maxX: 10, maxY: 0, data: { key: '4', loc: [10,0], signs: signs } }
                 ];
 
-            iD.services.mapillary.getMapillary().cache.signs.rtree.load(features);
-            var res = mapillary.signs(context.projection, dimensions);
+            mapillary.cache().signs.rtree.load(features);
+            var res = mapillary.signs(context.projection);
             expect(res).to.have.length.of.at.most(3);
         });
     });
 
     describe('#signsSupported', function() {
         it('returns false for Internet Explorer', function() {
-            var detect = iD.detect;
-            iD.detect = function() { return { ie: true, browser: 'Internet Explorer' }; };
+            ua = 'Trident/7.0; rv:11.0';
+            iD.Detect(true);  // force redetection
             expect(mapillary.signsSupported()).to.be.false;
-            iD.detect = detect;
         });
 
-        it('returns false for Safari', function() {
-            var detect = iD.detect;
-            iD.detect = function() { return { ie: false, browser: 'Safari' }; };
+        it('returns false for Safari 9', function() {
+            ua = 'Version/9.1 Safari/601';
+            iD.Detect(true);  // force redetection
             expect(mapillary.signsSupported()).to.be.false;
-            iD.detect = detect;
+        });
+
+        it('returns true for Safari 10', function() {
+            ua = 'Version/10.0 Safari/602';
+            iD.Detect(true);  // force redetection
+            expect(mapillary.signsSupported()).to.be.true;
         });
     });
 
     describe('#signHTML', function() {
         it('returns sign HTML', function() {
-            iD.services.mapillary.getMapillary().sign_defs = {
-                us: {'regulatory--maximum-speed-limit-65--us': '<span class="t">65</span>'}
-            };
+            mapillary.signDefs({
+                'regulatory--maximum-speed-limit-65--g1': {
+                    'height': 24,
+                    'pixelRatio': 1,
+                    'width': 24,
+                    'x': 576,
+                    'y': 528,
+                },
+            });
 
             var signdata = {
                     key: '0',
                     loc: [10,0],
-                    signs: [{
-                        'package': 'trafficsign_us_3.0',
-                        rect: [ 0.805, 0.463, 0.833, 0.502 ],
-                        length: 4,
-                        score: '1.27',
-                        type: 'regulatory--maximum-speed-limit-65--us'
-                    }]
+                    value: 'regulatory--maximum-speed-limit-65--g1',
                 };
 
-            expect(mapillary.signHTML(signdata)).to.eql('<span class="t">65</span>');
+            var sprite = context.asset('img/traffic-signs/traffic-signs.png');
+            expect(mapillary.signHTML(signdata)).to.eql('<div style="background-image:url(' + sprite + ');background-repeat:no-repeat;height:24px;width:24px;background-position-x:-576px;background-position-y:-528px"></div>');
         });
     });
 
-    describe('#setSelectedImage', function() {
-        it('sets selected image', function() {
-            mapillary.setSelectedImage('foo');
-            expect(iD.services.mapillary.getMapillary().image).to.eql('foo');
+    describe('#selectedImage', function() {
+        it('sets and gets selected image', function() {
+            mapillary.selectedImage('foo');
+            expect(mapillary.selectedImage()).to.eql('foo');
         });
     });
 
-    describe('#getSelectedImage', function() {
-        it('gets selected image', function() {
-            iD.services.mapillary.getMapillary().image = 'bar';
-            expect(mapillary.getSelectedImage()).to.eql('bar');
-        });
-    });
-
-    describe('#reset', function() {
-        it('resets cache and image', function() {
-            iD.services.mapillary.getMapillary().cache.foo = 'bar';
-            iD.services.mapillary.getMapillary().image = 'bar';
-
-            mapillary.reset();
-            expect(iD.services.mapillary.getMapillary().cache).to.not.have.property('foo');
-            expect(iD.services.mapillary.getMapillary().image).to.be.null;
+    describe('#parsePagination', function() {
+        it('gets URL for next page of results from API', function() {
+            var linkHeader = '<https://a.mapillary.com/v3/images?per_page=1000>; rel="first", <https://a.mapillary.com/v3/images?per_page=1000&_start_key_time=1476610926080>; rel="next"';
+            var pagination = mapillary.parsePagination(linkHeader);
+            expect(pagination.first).to.eql('https://a.mapillary.com/v3/images?per_page=1000');
+            expect(pagination.next).to.eql('https://a.mapillary.com/v3/images?per_page=1000&_start_key_time=1476610926080');
         });
     });
 

@@ -1,19 +1,26 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
 import * as Validations from '../validations/index';
-import { Difference } from './difference';
-import { Entity } from './entity';
-import { Graph } from './graph';
-import { Loading } from '../ui/index';
-import { SessionMutex } from '../util/index';
-import { Tree } from './tree';
+import { coreDifference } from './difference';
+import { coreGraph } from './graph';
+import { coreTree } from './tree';
+import { osmEntity } from '../osm/entity';
+import { uiLoading } from '../ui/index';
+import { utilSessionMutex } from '../util/index';
+import { utilRebind } from '../util/rebind';
 
-export function History(context) {
-    var stack, index, tree,
-        imageryUsed = ['Bing'],
+
+export function coreHistory(context) {
+    var imageryUsed = ['Bing'],
         dispatch = d3.dispatch('change', 'undone', 'redone'),
-        lock = SessionMutex('lock');
+        lock = utilSessionMutex('lock'),
+        duration = 150,
+        checkpoints = {},
+        stack, index, tree;
 
-    function perform(actions) {
+
+    // internal _act, accepts list of actions and eased time
+    function _act(actions, t) {
         actions = Array.prototype.slice.call(actions);
 
         var annotation;
@@ -22,9 +29,12 @@ export function History(context) {
             annotation = actions.pop();
         }
 
+        stack[index].transform = context.projection.transform();
+        stack[index].selectedIDs = context.selectedIDs();
+
         var graph = stack[index].graph;
         for (var i = 0; i < actions.length; i++) {
-            graph = actions[i](graph);
+            graph = actions[i](graph, t);
         }
 
         return {
@@ -34,101 +44,171 @@ export function History(context) {
         };
     }
 
+
+    // internal _perform with eased time
+    function _perform(args, t) {
+        var previous = stack[index].graph;
+        stack = stack.slice(0, index + 1);
+        stack.push(_act(args, t));
+        index++;
+        return change(previous);
+    }
+
+
+    // internal _replace with eased time
+    function _replace(args, t) {
+        var previous = stack[index].graph;
+        // assert(index == stack.length - 1)
+        stack[index] = _act(args, t);
+        return change(previous);
+    }
+
+
+    // internal _overwrite with eased time
+    function _overwrite(args, t) {
+        var previous = stack[index].graph;
+        if (index > 0) {
+            index--;
+            stack.pop();
+        }
+        stack = stack.slice(0, index + 1);
+        stack.push(_act(args, t));
+        index++;
+        return change(previous);
+    }
+
+
+    // determine diffrence and dispatch a change event
     function change(previous) {
-        var difference = Difference(previous, history.graph());
-        dispatch.change(difference);
+        var difference = coreDifference(previous, history.graph());
+        dispatch.call('change', this, difference);
         return difference;
     }
+
 
     // iD uses namespaced keys so multiple installations do not conflict
     function getKey(n) {
         return 'iD_' + window.location.origin + '_' + n;
     }
 
+
     var history = {
+
         graph: function() {
             return stack[index].graph;
         },
+
 
         base: function() {
             return stack[0].graph;
         },
 
+
         merge: function(entities, extent) {
             stack[0].graph.rebase(entities, _.map(stack, 'graph'), false);
             tree.rebase(entities, false);
 
-            dispatch.change(undefined, extent);
+            dispatch.call('change', this, undefined, extent);
         },
+
 
         perform: function() {
-            var previous = stack[index].graph;
+            // complete any transition already in progress
+            d3.select(document).interrupt('history.perform');
 
-            stack = stack.slice(0, index + 1);
-            stack.push(perform(arguments));
-            index++;
+            var transitionable = false,
+                action0 = arguments[0];
 
-            return change(previous);
-        },
+            if (arguments.length === 1 ||
+                arguments.length === 2 && !_.isFunction(arguments[1])) {
+                transitionable = !!action0.transitionable;
+            }
 
-        replace: function() {
-            var previous = stack[index].graph;
+            if (transitionable) {
+                var origArguments = arguments;
+                d3.select(document)
+                    .transition('history.perform')
+                    .duration(duration)
+                    .ease(d3.easeLinear)
+                    .tween('history.tween', function() {
+                        return function(t) {
+                            if (t < 1) _overwrite([action0], t);
+                        };
+                    })
+                    .on('start', function() {
+                        _perform([action0], 0);
+                    })
+                    .on('end interrupt', function() {
+                        _overwrite(origArguments, 1);
+                    });
 
-            // assert(index == stack.length - 1)
-            stack[index] = perform(arguments);
-
-            return change(previous);
-        },
-
-        pop: function() {
-            var previous = stack[index].graph;
-
-            if (index > 0) {
-                index--;
-                stack.pop();
-                return change(previous);
+            } else {
+                return _perform(arguments);
             }
         },
+
+
+        replace: function() {
+            d3.select(document).interrupt('history.perform');
+            return _replace(arguments, 1);
+        },
+
 
         // Same as calling pop and then perform
         overwrite: function() {
-            var previous = stack[index].graph;
+            d3.select(document).interrupt('history.perform');
+            return _overwrite(arguments, 1);
+        },
 
-            if (index > 0) {
+
+        pop: function(n) {
+            d3.select(document).interrupt('history.perform');
+
+            var previous = stack[index].graph;
+            if (isNaN(+n) || +n < 0) {
+                n = 1;
+            }
+            while (n-- > 0 && index > 0) {
                 index--;
                 stack.pop();
             }
-            stack = stack.slice(0, index + 1);
-            stack.push(perform(arguments));
-            index++;
-
             return change(previous);
         },
 
-        undo: function() {
-            var previous = stack[index].graph;
 
-            // Pop to the next annotated state.
+        // Back to the previous annotated state or index = 0.
+        undo: function() {
+            d3.select(document).interrupt('history.perform');
+
+            var previous = stack[index].graph;
             while (index > 0) {
                 index--;
                 if (stack[index].annotation) break;
             }
 
-            dispatch.undone();
+            dispatch.call('undone', this, stack[index]);
             return change(previous);
         },
 
-        redo: function() {
-            var previous = stack[index].graph;
 
-            while (index < stack.length - 1) {
-                index++;
-                if (stack[index].annotation) break;
+        // Forward to the next annotated state.
+        redo: function() {
+            d3.select(document).interrupt('history.perform');
+
+            var previous = stack[index].graph;
+            var tryIndex = index;
+            while (tryIndex < stack.length - 1) {
+                tryIndex++;
+                if (stack[tryIndex].annotation) {
+                    index = tryIndex;
+                    dispatch.call('redone', this, stack[index]);
+                    break;
+                }
             }
 
-            dispatch.redone();
             return change(previous);
         },
+
 
         undoAnnotation: function() {
             var i = index;
@@ -138,6 +218,7 @@ export function History(context) {
             }
         },
 
+
         redoAnnotation: function() {
             var i = index + 1;
             while (i <= stack.length - 1) {
@@ -146,15 +227,18 @@ export function History(context) {
             }
         },
 
+
         intersects: function(extent) {
             return tree.intersects(extent, stack[index].graph);
         },
 
+
         difference: function() {
             var base = stack[0].graph,
                 head = stack[index].graph;
-            return Difference(base, head);
+            return coreDifference(base, head);
         },
+
 
         changes: function(action) {
             var base = stack[0].graph,
@@ -164,7 +248,7 @@ export function History(context) {
                 head = action(head);
             }
 
-            var difference = Difference(base, head);
+            var difference = coreDifference(base, head);
 
             return {
                 modified: difference.modified(),
@@ -173,6 +257,7 @@ export function History(context) {
             };
         },
 
+
         validate: function(changes) {
             return _(Validations)
                 .map(function(fn) { return fn()(changes, stack[index].graph); })
@@ -180,9 +265,11 @@ export function History(context) {
                 .value();
         },
 
+
         hasChanges: function() {
             return this.difference().length() > 0;
         },
+
 
         imageryUsed: function(sources) {
             if (sources) {
@@ -198,13 +285,96 @@ export function History(context) {
             }
         },
 
-        reset: function() {
-            stack = [{graph: Graph()}];
-            index = 0;
-            tree = Tree(stack[0].graph);
-            dispatch.change();
+
+        // save the current history state
+        checkpoint: function(key) {
+            checkpoints[key] = {
+                stack: _.cloneDeep(stack),
+                index: index
+            };
             return history;
         },
+
+
+        // restore history state to a given checkpoint or reset completely
+        reset: function(key) {
+            if (key !== undefined && checkpoints.hasOwnProperty(key)) {
+                stack = _.cloneDeep(checkpoints[key].stack);
+                index = checkpoints[key].index;
+            } else {
+                stack = [{graph: coreGraph()}];
+                index = 0;
+                tree = coreTree(stack[0].graph);
+                checkpoints = {};
+            }
+            dispatch.call('change');
+            return history;
+        },
+
+
+        toIntroGraph: function() {
+            var nextId = { n: 0, r: 0, w: 0 },
+                permIds = {},
+                graph = this.graph(),
+                baseEntities = {};
+
+            // clone base entities..
+            _.forEach(graph.base().entities, function(entity) {
+                var copy = _.cloneDeepWith(entity, customizer);
+                baseEntities[copy.id] = copy;
+            });
+
+            // replace base entities with head entities..
+            _.forEach(graph.entities, function(entity, id) {
+                if (entity) {
+                    var copy = _.cloneDeepWith(entity, customizer);
+                    baseEntities[copy.id] = copy;
+                } else {
+                    delete baseEntities[id];
+                }
+            });
+
+            // swap temporary for permanent ids..
+            _.forEach(baseEntities, function(entity) {
+                if (Array.isArray(entity.nodes)) {
+                    entity.nodes = entity.nodes.map(function(node) {
+                        return permIds[node] || node;
+                    });
+                }
+                if (Array.isArray(entity.members)) {
+                    entity.members = entity.members.map(function(member) {
+                        member.id = permIds[member.id] || member.id;
+                        return member;
+                    });
+                }
+            });
+
+            return JSON.stringify({ dataIntroGraph: baseEntities });
+
+
+            function customizer(src) {
+                var copy = _.omit(_.cloneDeep(src), ['type', 'user', 'v', 'version', 'visible']);
+                if (_.isEmpty(copy.tags)) {
+                    delete copy.tags;
+                }
+
+                if (Array.isArray(copy.loc)) {
+                    copy.loc[0] = +copy.loc[0].toFixed(6);
+                    copy.loc[1] = +copy.loc[1].toFixed(6);
+                }
+
+                var match = src.id.match(/([nrw])-\d*/);  // temporary id
+                if (match !== null) {
+                    var nrw = match[1], permId;
+                    do { permId = nrw + (++nextId[nrw]); }
+                    while (baseEntities.hasOwnProperty(permId));
+
+                    copy.id = permIds[src.id] = permId;
+                }
+                return copy;
+            }
+        },
+
 
         toJSON: function() {
             if (!this.hasChanges()) return;
@@ -218,7 +388,7 @@ export function History(context) {
 
                 _.forEach(i.graph.entities, function(entity, id) {
                     if (entity) {
-                        var key = Entity.key(entity);
+                        var key = osmEntity.key(entity);
                         allEntities[key] = entity;
                         modified.push(key);
                     } else {
@@ -253,30 +423,31 @@ export function History(context) {
                 entities: _.values(allEntities),
                 baseEntities: _.values(baseEntities),
                 stack: s,
-                nextIDs: Entity.id.next,
+                nextIDs: osmEntity.id.next,
                 index: index
             });
         },
+
 
         fromJSON: function(json, loadChildNodes) {
             var h = JSON.parse(json),
                 loadComplete = true;
 
-            Entity.id.next = h.nextIDs;
+            osmEntity.id.next = h.nextIDs;
             index = h.index;
 
             if (h.version === 2 || h.version === 3) {
                 var allEntities = {};
 
                 h.entities.forEach(function(entity) {
-                    allEntities[Entity.key(entity)] = Entity(entity);
+                    allEntities[osmEntity.key(entity)] = osmEntity(entity);
                 });
 
                 if (h.version === 3) {
                     // This merges originals for changed entities into the base of
                     // the stack even if the current stack doesn't have them (for
                     // example when iD has been restarted in a different region)
-                    var baseEntities = h.baseEntities.map(function(d) { return Entity(d); });
+                    var baseEntities = h.baseEntities.map(function(d) { return osmEntity(d); });
                     stack[0].graph.rebase(baseEntities, _.map(stack, 'graph'), true);
                     tree.rebase(baseEntities, true);
 
@@ -295,7 +466,7 @@ export function History(context) {
                             loadComplete = false;
                             context.redrawEnable(false);
 
-                            var loading = Loading(context).blocking(true);
+                            var loading = uiLoading(context).blocking(true);
                             context.container().call(loading);
 
                             var childNodesLoaded = function(err, result) {
@@ -317,7 +488,7 @@ export function History(context) {
                                 if (err || _.isEmpty(missing)) {
                                     loading.close();
                                     context.redrawEnable(true);
-                                    dispatch.change();
+                                    dispatch.call('change');
                                 }
                             };
 
@@ -343,7 +514,7 @@ export function History(context) {
                     }
 
                     return {
-                        graph: Graph(stack[0].graph).load(entities),
+                        graph: coreGraph(stack[0].graph).load(entities),
                         annotation: d.annotation,
                         imageryUsed: d.imageryUsed
                     };
@@ -355,25 +526,27 @@ export function History(context) {
 
                     for (var i in d.entities) {
                         var entity = d.entities[i];
-                        entities[i] = entity === 'undefined' ? undefined : Entity(entity);
+                        entities[i] = entity === 'undefined' ? undefined : osmEntity(entity);
                     }
 
-                    d.graph = Graph(stack[0].graph).load(entities);
+                    d.graph = coreGraph(stack[0].graph).load(entities);
                     return d;
                 });
             }
 
             if (loadComplete) {
-                dispatch.change();
+                dispatch.call('change');
             }
 
             return history;
         },
 
+
         save: function() {
             if (lock.locked()) context.storage(getKey('saved_history'), history.toJSON() || null);
             return history;
         },
+
 
         clearSaved: function() {
             context.debouncedSave.cancel();
@@ -381,19 +554,23 @@ export function History(context) {
             return history;
         },
 
+
         lock: function() {
             return lock.lock();
         },
 
+
         unlock: function() {
             lock.unlock();
         },
+
 
         // is iD not open in another window and it detects that
         // there's a history stored in localStorage that's recoverable?
         restorableChanges: function() {
             return lock.locked() && !!context.storage(getKey('saved_history'));
         },
+
 
         // load history from a version stored in localStorage
         restore: function() {
@@ -403,11 +580,13 @@ export function History(context) {
             if (json) history.fromJSON(json, true);
         },
 
+
         _getKey: getKey
 
     };
 
+
     history.reset();
 
-    return d3.rebind(history, dispatch, 'on');
+    return utilRebind(history, dispatch, 'on');
 }

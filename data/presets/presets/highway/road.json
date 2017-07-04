@@ -3,9 +3,11 @@
     "fields": [
         "oneway",
         "maxspeed",
+        "lanes",
+        "surface",
         "structure",
-        "access",
-        "surface"
+        "maxheight",
+        "access"
     ],
     "geometry": [
         "line"

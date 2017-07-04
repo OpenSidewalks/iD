@@ -1,6 +1,7 @@
 /* globals chai:false */
 
 iD.debug = true;
+iD.data.imagery = [];
 
 mocha.setup({
     ui: 'bdd',
@@ -16,16 +17,4 @@ mocha.setup({
 });
 
 expect = chai.expect;
-
-chai.use(function (chai, utils) {
-    var flag = utils.flag;
-
-    chai.Assertion.addMethod('classed', function (className) {
-        this.assert(
-            flag(this, 'object').classed(className)
-            , 'expected #{this} to be classed #{exp}'
-            , 'expected #{this} not to be classed #{exp}'
-            , className
-        );
-    });
-});
+var d3 = iD.d3;

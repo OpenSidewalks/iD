@@ -1,10 +1,12 @@
 {
+    "icon": "poi-social-facility",
     "fields": [
         "operator",
         "address",
         "building_area",
-        "opening_hours",
-        "social_facility_for"
+        "social_facility",
+        "social_facility_for",
+        "opening_hours"
     ],
     "geometry": [
         "point",
@@ -15,6 +17,10 @@
     "tags": {
         "amenity": "social_facility",
         "social_facility": "food_bank"
+    },
+    "reference": {
+        "key": "social_facility",
+        "value": "food_bank"
     },
     "name": "Food Bank"
 }

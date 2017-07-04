@@ -1,23 +1,28 @@
-import { t } from '../util/locale';
 import _ from 'lodash';
-import { Circularize as CircularizeAction } from '../actions/index';
-export function Circularize(selectedIDs, context) {
+import { t } from '../util/locale';
+import { actionCircularize } from '../actions/index';
+import { behaviorOperation } from '../behavior/index';
+
+
+export function operationCircularize(selectedIDs, context) {
     var entityId = selectedIDs[0],
         entity = context.entity(entityId),
         extent = entity.extent(context.graph()),
         geometry = context.geometry(entityId),
-        action = CircularizeAction(entityId, context.projection);
+        action = actionCircularize(entityId, context.projection);
+
 
     var operation = function() {
-        var annotation = t('operations.circularize.annotation.' + geometry);
-        context.perform(action, annotation);
+        context.perform(action, operation.annotation());
     };
+
 
     operation.available = function() {
         return selectedIDs.length === 1 &&
             entity.type === 'way' &&
             _.uniq(entity.nodes).length > 1;
     };
+
 
     operation.disabled = function() {
         var reason;
@@ -29,6 +34,7 @@ export function Circularize(selectedIDs, context) {
         return action.disabled(context.graph()) || reason;
     };
 
+
     operation.tooltip = function() {
         var disable = operation.disabled();
         return disable ?
@@ -36,9 +42,16 @@ export function Circularize(selectedIDs, context) {
             t('operations.circularize.description.' + geometry);
     };
 
+
+    operation.annotation = function() {
+        return t('operations.circularize.annotation.' + geometry);
+    };
+
+
     operation.id = 'circularize';
     operation.keys = [t('operations.circularize.key')];
     operation.title = t('operations.circularize.title');
+    operation.behavior = behaviorOperation(context).which(operation);
 
     return operation;
 }

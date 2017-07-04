@@ -1,11 +1,15 @@
+import * as d3 from 'd3';
 import { t } from '../util/locale';
-import { Extent } from '../geo/index';
-import { Icon } from '../svg/index';
-import { entityOrMemberSelector } from '../util/index';
+import { geoExtent } from '../geo/index';
+import { svgIcon } from '../svg/index';
+import { utilEntityOrMemberSelector } from '../util/index';
+import { utilRebind } from '../util/rebind';
 
-export function Conflicts(context) {
+
+export function uiConflicts(context) {
     var dispatch = d3.dispatch('download', 'cancel', 'save'),
         list;
+
 
     function conflicts(selection) {
         var header = selection
@@ -15,8 +19,8 @@ export function Conflicts(context) {
         header
             .append('button')
             .attr('class', 'fr')
-            .on('click', function() { dispatch.cancel(); })
-            .call(Icon('#icon-close'));
+            .on('click', function() { dispatch.call('cancel'); })
+            .call(svgIcon('#icon-close'));
 
         header
             .append('h3')
@@ -33,7 +37,7 @@ export function Conflicts(context) {
             .append('a')
             .attr('class', 'conflicts-download')
             .text(t('save.conflict.download_changes'))
-            .on('click.download', function() { dispatch.download(); });
+            .on('click.download', function() { dispatch.call('download'); });
 
         body
             .append('div')
@@ -56,13 +60,13 @@ export function Conflicts(context) {
             .attr('disabled', list.length > 1)
             .attr('class', 'action conflicts-button col6')
             .text(t('save.title'))
-            .on('click.try_again', function() { dispatch.save(); });
+            .on('click.try_again', function() { dispatch.call('save'); });
 
         buttons
             .append('button')
             .attr('class', 'secondary-action conflicts-button col6')
             .text(t('confirm.cancel'))
-            .on('click.cancel', function() { dispatch.cancel(); });
+            .on('click.cancel', function() { dispatch.call('cancel'); });
     }
 
 
@@ -155,8 +159,8 @@ export function Conflicts(context) {
 
         item.exit()
             .remove();
-
     }
+
 
     function addChoices(selection) {
         var choices = selection
@@ -193,6 +197,7 @@ export function Conflicts(context) {
             });
     }
 
+
     function choose(ul, datum) {
         if (d3.event) d3.event.preventDefault();
 
@@ -202,7 +207,7 @@ export function Conflicts(context) {
             .selectAll('input')
             .property('checked', function(d) { return d === datum; });
 
-        var extent = Extent(),
+        var extent = geoExtent(),
             entity;
 
         entity = context.graph().hasEntity(datum.id);
@@ -216,6 +221,7 @@ export function Conflicts(context) {
         zoomToEntity(datum.id, extent);
     }
 
+
     function zoomToEntity(id, extent) {
         context.surface().selectAll('.hover')
             .classed('hover', false);
@@ -228,7 +234,7 @@ export function Conflicts(context) {
                 context.map().zoomTo(entity);
             }
             context.surface().selectAll(
-                entityOrMemberSelector([entity.id], context.graph()))
+                utilEntityOrMemberSelector([entity.id], context.graph()))
                 .classed('hover', true);
         }
     }
@@ -251,5 +257,6 @@ export function Conflicts(context) {
         return conflicts;
     };
 
-    return d3.rebind(conflicts, dispatch, 'on');
+
+    return utilRebind(conflicts, dispatch, 'on');
 }

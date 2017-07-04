@@ -1,4 +1,5 @@
 {
+    "icon": "poi-foot",
     "fields": [
         "crossing",
         "wheelchair",
@@ -12,6 +13,10 @@
         "highway": "crossing",
         "crossing": "zebra",
         "project":"OpenSidewalks"
+    },
+    "reference": {
+        "key": "highway",
+        "value": "crossing"
     },
     "terms": [
         "zebra crossing"

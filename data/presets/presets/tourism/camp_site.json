@@ -4,7 +4,10 @@
         "operator",
         "address",
         "capacity",
-        "fee"
+        "fee",
+        "internet_access",
+        "internet_access/fee",
+        "internet_access/ssid"
     ],
     "geometry": [
         "point",
@@ -12,10 +15,11 @@
         "area"
     ],
     "terms": [
-        "Tent"
+        "tent",
+        "rv"
     ],
     "tags": {
         "tourism": "camp_site"
     },
-    "name": "Camp Site"
+    "name": "Campground"
 }

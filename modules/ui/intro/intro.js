@@ -1,73 +1,58 @@
-import { t } from '../../util/locale';
-import { Entity, Graph } from '../../core/index';
-import { Browse } from '../../modes/index';
-import { area } from './area';
-import { line } from './line';
-import { navigation } from './navigation';
-import { point } from './point';
-import { startEditing } from './start_editing';
+import * as d3 from 'd3';
+import { t, textDirection } from '../../util/locale';
+import { localize } from './helper';
 
-var sampleIntros = {
-    area: area,
-    line: line,
-    navigation: navigation,
-    point: point,
-    startEditing: startEditing
+import { coreGraph } from '../../core/graph';
+import { dataIntroGraph } from '../../../data/intro_graph.json';
+import { modeBrowse } from '../../modes/browse';
+import { osmEntity } from '../../osm/entity';
+import { services } from '../../services';
+import { svgIcon } from '../../svg/icon';
+import { uiCurtain } from '../curtain';
+
+import { uiIntroWelcome } from './welcome';
+import { uiIntroNavigation } from './navigation';
+import { uiIntroPoint } from './point';
+import { uiIntroArea } from './area';
+import { uiIntroLine } from './line';
+import { uiIntroBuilding } from './building';
+import { uiIntroStartEditing } from './start_editing';
+
+
+var chapterUi = {
+    welcome: uiIntroWelcome,
+    navigation: uiIntroNavigation,
+    point: uiIntroPoint,
+    area: uiIntroArea,
+    line: uiIntroLine,
+    building: uiIntroBuilding,
+    startEditing: uiIntroStartEditing
 };
 
-export function intro(context) {
-    var step;
+var chapterFlow = [
+    'welcome',
+    'navigation',
+    'point',
+    'area',
+    'line',
+    'building',
+    'startEditing'
+];
+
+
+export function uiIntro(context) {
+    var introGraph = {},
+        currChapter;
+
+
+    // create entities for intro graph and localize names
+    for (var id in dataIntroGraph) {
+        introGraph[id] = osmEntity(localize(dataIntroGraph[id]));
+    }
+
 
     function intro(selection) {
-
-        function localizedName(id) {
-            var features = {
-                n2140018997: 'city_hall',
-                n367813436: 'fire_department',
-                w203988286: 'memory_isle_park',
-                w203972937: 'riverwalk_trail',
-                w203972938: 'riverwalk_trail',
-                w203972940: 'riverwalk_trail',
-                w41785752: 'w_michigan_ave',
-                w134150789: 'w_michigan_ave',
-                w134150795: 'w_michigan_ave',
-                w134150800: 'w_michigan_ave',
-                w134150811: 'w_michigan_ave',
-                w134150802: 'e_michigan_ave',
-                w134150836: 'e_michigan_ave',
-                w41074896: 'e_michigan_ave',
-                w17965834: 'spring_st',
-                w203986457: 'scidmore_park',
-                w203049587: 'petting_zoo',
-                w17967397: 'n_andrews_st',
-                w17967315: 's_andrews_st',
-                w17967326: 'n_constantine_st',
-                w17966400: 's_constantine_st',
-                w170848823: 'rocky_river',
-                w170848824: 'rocky_river',
-                w170848331: 'rocky_river',
-                w17967752: 'railroad_dr',
-                w17965998: 'conrail_rr',
-                w134150845: 'conrail_rr',
-                w170989131: 'st_joseph_river',
-                w143497377: 'n_main_st',
-                w134150801: 's_main_st',
-                w134150830: 's_main_st',
-                w17966462: 's_main_st',
-                w17967734: 'water_st',
-                w17964996: 'foster_st',
-                w170848330: 'portage_river',
-                w17965351: 'flower_st',
-                w17965502: 'elm_st',
-                w17965402: 'walnut_st',
-                w17964793: 'morris_ave',
-                w17967444: 'east_st',
-                w17966984: 'portage_ave'
-            };
-            return features[id] && t('intro.graph.' + features[id]);
-        }
-
-        context.enter(Browse(context));
+        context.enter(modeBrowse(context));
 
         // Save current map state
         var history = context.history().toJSON(),
@@ -75,101 +60,115 @@ export function intro(context) {
             center = context.map().center(),
             zoom = context.map().zoom(),
             background = context.background().baseLayerSource(),
+            overlays = context.background().overlayLayerSources(),
             opacity = d3.selectAll('#map .layer-background').style('opacity'),
             loadedTiles = context.connection().loadedTiles(),
             baseEntities = context.history().graph().base().entities,
-            introGraph, name;
+            countryCode = services.geocoder.countryCode;
 
         // Block saving
         context.inIntro(true);
 
         // Load semi-real data used in intro
-        context.connection().toggle(false).flush();
+        context.connection().toggle(false).reset();
         context.history().reset();
-
-        introGraph = JSON.parse(iD.introGraph);
-        for (var key in introGraph) {
-            introGraph[key] = Entity(introGraph[key]);
-            name = localizedName(key);
-            if (name) {
-                introGraph[key].tags.name = name;
-            }
-        }
-        context.history().merge(d3.values(Graph().load(introGraph).entities));
+        context.history().merge(d3.values(coreGraph().load(introGraph).entities));
+        context.history().checkpoint('initial');
         context.background().bing();
+        overlays.forEach(function (d) { context.background().toggleOverlayLayer(d); });
+
+        // Mock geocoder
+        services.geocoder.countryCode = function(location, callback) {
+            callback(null, t('intro.graph.countrycode'));
+        };
 
         d3.selectAll('#map .layer-background').style('opacity', 1);
 
-        var curtain = d3.curtain();
+        var curtain = uiCurtain();
         selection.call(curtain);
 
-        function reveal(box, text, options) {
-            options = options || {};
-            if (text) curtain.reveal(box, text, options.tooltipClass, options.duration);
-            else curtain.reveal(box, '', '', options.duration);
-        }
-
-        var steps = ['navigation', 'point', 'area', 'line', 'startEditing'].map(function(step, i) {
-            var s = sampleIntros[step](context, reveal)
+        var chapters = chapterFlow.map(function(chapter, i) {
+            var s = chapterUi[chapter](context, curtain.reveal)
                 .on('done', function() {
-                    entered.filter(function(d) {
+                    context.presets().init();  // clear away "recent" presets
+
+                    buttons.filter(function(d) {
                         return d.title === s.title;
                     }).classed('finished', true);
-                    enter(steps[i + 1]);
+
+                    if (i < chapterFlow.length - 1) {
+                        var next = chapterFlow[i + 1];
+                        d3.select('button.chapter-' + next)
+                            .classed('next', true);
+                    }
                 });
             return s;
         });
 
-        steps[steps.length - 1].on('startEditing', function() {
+        chapters[chapters.length - 1].on('startEditing', function() {
             curtain.remove();
             navwrap.remove();
             d3.selectAll('#map .layer-background').style('opacity', opacity);
-            context.connection().toggle(true).flush().loadedTiles(loadedTiles);
+            context.connection().toggle(true).reset().loadedTiles(loadedTiles);
             context.history().reset().merge(d3.values(baseEntities));
             context.background().baseLayerSource(background);
+            overlays.forEach(function (d) { context.background().toggleOverlayLayer(d); });
             if (history) context.history().fromJSON(history, false);
             context.map().centerZoom(center, zoom);
             window.location.replace(hash);
+            services.geocoder.countryCode = countryCode;
             context.inIntro(false);
         });
 
-        var navwrap = selection.append('div').attr('class', 'intro-nav-wrap fillD');
+        var navwrap = selection
+            .append('div')
+            .attr('class', 'intro-nav-wrap fillD');
 
-        var buttonwrap = navwrap.append('div')
+        navwrap
+            .append('svg')
+            .attr('class', 'intro-nav-wrap-logo')
+            .append('use')
+            .attr('xlink:href', '#logo-walkthrough');
+
+        var buttonwrap = navwrap
+            .append('div')
             .attr('class', 'joined')
-            .selectAll('button.step');
+            .selectAll('button.chapter');
 
-        var entered = buttonwrap
-            .data(steps)
+        var buttons = buttonwrap
+            .data(chapters)
             .enter()
             .append('button')
-            .attr('class', 'step')
-            .on('click', enter);
+            .attr('class', function(d, i) { return 'chapter chapter-' + chapterFlow[i]; })
+            .on('click', enterChapter);
 
-        entered
-            .append('label')
+        buttons
+            .append('span')
             .text(function(d) { return t(d.title); });
 
-        entered
+        buttons
             .append('span')
             .attr('class', 'status')
-            .text(' - ' + t('intro.done'));
+            .call(svgIcon((textDirection === 'rtl' ? '#icon-backward' : '#icon-forward'), 'inline'));
 
-        enter(steps[0]);
+        enterChapter(chapters[0]);
 
-        function enter(newStep) {
-            if (step) { step.exit(); }
 
-            context.enter(Browse(context));
+        function enterChapter(newChapter) {
+            if (currChapter) { currChapter.exit(); }
+            context.enter(modeBrowse(context));
 
-            step = newStep;
-            step.enter();
+            currChapter = newChapter;
+            currChapter.enter();
 
-            entered.classed('active', function(d) {
-                return d.title === step.title;
-            });
+            buttons
+                .classed('next', false)
+                .classed('active', function(d) {
+                    return d.title === currChapter.title;
+                });
         }
-
     }
+
+
     return intro;
 }

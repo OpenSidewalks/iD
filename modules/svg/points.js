@@ -1,8 +1,11 @@
 import _ from 'lodash';
-import { PointTransform, TagClasses } from './index';
-import { Entity } from '../core/index';
+import { dataFeatureIcons } from '../../data/index';
+import { osmEntity } from '../osm/index';
+import { svgPointTransform, svgTagClasses } from './index';
 
-export function Points(projection, context) {
+
+export function svgPoints(projection, context) {
+
     function markerPath(selection, klass) {
         selection
             .attr('class', klass)
@@ -14,37 +17,52 @@ export function Points(projection, context) {
         return b.loc[1] - a.loc[1];
     }
 
-    return function drawPoints(surface, graph, entities, filter) {
-        var wireframe = surface.classed('fill-wireframe'),
+
+    return function drawPoints(selection, graph, entities, filter) {
+        var wireframe = context.surface().classed('fill-wireframe'),
             points = wireframe ? [] : _.filter(entities, function(e) {
                 return e.geometry(graph) === 'point';
             });
 
         points.sort(sortY);
 
-        var groups = surface.selectAll('.layer-hit').selectAll('g.point')
-            .filter(filter)
-            .data(points, Entity.key);
+        var layer = selection.selectAll('.layer-hit');
 
-        var group = groups.enter()
+        var groups = layer.selectAll('g.point')
+            .filter(filter)
+            .data(points, osmEntity.key);
+
+        groups.exit()
+            .remove();
+
+        var enter = groups.enter()
             .append('g')
             .attr('class', function(d) { return 'node point ' + d.id; })
             .order();
 
-        group.append('path')
+        enter.append('path')
             .call(markerPath, 'shadow');
 
-        group.append('path')
+        enter.append('ellipse')
+            .attr('cx', 0.5)
+            .attr('cy', 1)
+            .attr('rx', 6.5)
+            .attr('ry', 3)
+            .attr('class', 'stroke');
+
+        enter.append('path')
             .call(markerPath, 'stroke');
 
-        group.append('use')
-            .attr('transform', 'translate(-6, -20)')
+        enter.append('use')
+            .attr('transform', 'translate(-5, -19)')
             .attr('class', 'icon')
-            .attr('width', '12px')
-            .attr('height', '12px');
+            .attr('width', '11px')
+            .attr('height', '11px');
 
-        groups.attr('transform', PointTransform(projection))
-            .call(TagClasses());
+        groups = groups
+            .merge(enter)
+            .attr('transform', svgPointTransform(projection))
+            .call(svgTagClasses());
 
         // Selecting the following implicitly
         // sets the data (point entity) on the element
@@ -52,11 +70,15 @@ export function Points(projection, context) {
         groups.select('.stroke');
         groups.select('.icon')
             .attr('xlink:href', function(entity) {
-                var preset = context.presets().match(entity, graph);
-                return preset.icon ? '#' + preset.icon + '-12' : '';
-            });
+                var preset = context.presets().match(entity, graph),
+                    picon = preset && preset.icon;
 
-        groups.exit()
-            .remove();
+                if (!picon)
+                    return '';
+                else {
+                    var isMaki = dataFeatureIcons.indexOf(picon) !== -1;
+                    return '#' + picon + (isMaki ? '-11' : '');
+                }
+            });
     };
 }

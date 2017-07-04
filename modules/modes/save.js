@@ -1,28 +1,81 @@
-import { t } from '../util/locale';
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { Commit, Conflicts, Loading, Success } from '../ui/index';
-import { DiscardTags, MergeRemoteChanges, Noop, Revert } from '../actions/index';
-import { displayName, displayType } from '../util/index';
-import { Browse } from './index';
-import { Graph } from '../core/index';
+
+import { t } from '../util/locale';
 import { JXON } from '../util/jxon';
 
-export function Save(context) {
-    var ui = Commit(context)
+import {
+    actionDiscardTags,
+    actionMergeRemoteChanges,
+    actionNoop,
+    actionRevert
+} from '../actions';
+
+import { coreGraph } from '../core';
+import { modeBrowse } from './index';
+
+import {
+    uiConflicts,
+    uiConfirm,
+    uiCommit,
+    uiLoading,
+    uiSuccess
+} from '../ui';
+
+import {
+    utilDisplayName,
+    utilDisplayType
+} from '../util';
+
+
+
+export function modeSave(context) {
+    var mode = {
+        id: 'save'
+    };
+
+    var commit = uiCommit(context)
             .on('cancel', cancel)
             .on('save', save);
 
+
     function cancel() {
-        context.enter(Browse(context));
+        context.enter(modeBrowse(context));
     }
 
-    function save(e, tryAgain) {
+
+    function save(changeset, tryAgain) {
+
+        var loading = uiLoading(context).message(t('save.uploading')).blocking(true),
+            history = context.history(),
+            origChanges = history.changes(actionDiscardTags(history.difference())),
+            localGraph = context.graph(),
+            remoteGraph = coreGraph(history.base(), true),
+            modified = _.filter(history.difference().summary(), {changeType: 'modified'}),
+            toCheck = _.map(_.map(modified, 'entity'), 'id'),
+            toLoad = withChildNodes(toCheck, localGraph),
+            conflicts = [],
+            errors = [];
+
+        if (!tryAgain) {
+            history.perform(actionNoop());  // checkpoint
+        }
+
+        context.container().call(loading);
+
+        if (toCheck.length) {
+            context.connection().loadMultiple(toLoad, loaded);
+        } else {
+            upload();
+        }
+
+
         function withChildNodes(ids, graph) {
             return _.uniq(_.reduce(ids, function(result, id) {
-                var e = graph.entity(id);
-                if (e.type === 'way') {
+                var entity = graph.entity(id);
+                if (entity.type === 'way') {
                     try {
-                        var cn = graph.childNodes(e);
+                        var cn = graph.childNodes(entity);
                         result.push.apply(result, _.map(_.filter(cn, 'version'), 'id'));
                     } catch (err) {
                         /* eslint-disable no-console */
@@ -32,26 +85,6 @@ export function Save(context) {
                 }
                 return result;
             }, _.clone(ids)));
-        }
-
-        var loading = Loading(context).message(t('save.uploading')).blocking(true),
-            history = context.history(),
-            origChanges = history.changes(DiscardTags(history.difference())),
-            localGraph = context.graph(),
-            remoteGraph = Graph(history.base(), true),
-            modified = _.filter(history.difference().summary(), {changeType: 'modified'}),
-            toCheck = _.map(_.map(modified, 'entity'), 'id'),
-            toLoad = withChildNodes(toCheck, localGraph),
-            conflicts = [],
-            errors = [];
-
-        if (!tryAgain) history.perform(Noop());  // checkpoint
-        context.container().call(loading);
-
-        if (toCheck.length) {
-            context.connection().loadMultiple(toLoad, loaded);
-        } else {
-            finalize();
         }
 
 
@@ -104,7 +137,7 @@ export function Save(context) {
                 return '<a href="' + context.connection().userURL(d) + '" target="_blank">' + d + '</a>';
             }
             function entityName(entity) {
-                return displayName(entity) || (displayType(entity.id) + ' ' + entity.id);
+                return utilDisplayName(entity) || (utilDisplayType(entity.id) + ' ' + entity.id);
             }
 
             function compareVersions(local, remote) {
@@ -130,7 +163,7 @@ export function Save(context) {
 
                 if (compareVersions(local, remote)) return;
 
-                var action = MergeRemoteChanges,
+                var action = actionMergeRemoteChanges,
                     merge = action(id, localGraph, remoteGraph, formatUser);
 
                 history.replace(merge);
@@ -155,46 +188,46 @@ export function Save(context) {
                 });
             });
 
-            finalize();
+            upload();
         }
 
 
-        function finalize() {
+        function upload() {
             if (conflicts.length) {
                 conflicts.sort(function(a,b) { return b.id.localeCompare(a.id); });
                 showConflicts();
             } else if (errors.length) {
                 showErrors();
             } else {
-                var changes = history.changes(DiscardTags(history.difference()));
+                var changes = history.changes(actionDiscardTags(history.difference()));
                 if (changes.modified.length || changes.created.length || changes.deleted.length) {
-                    context.connection().putChangeset(
-                        changes,
-                        context.version,
-                        e.comment,
-                        history.imageryUsed(),
-                        function(err, changeset_id) {
-                            if (err) {
-                                errors.push({
-                                    msg: err.responseText,
-                                    details: [ t('save.status_code', { code: err.status }) ]
-                                });
-                                showErrors();
-                            } else {
-                                history.clearSaved();
-                                success(e, changeset_id);
-                                // Add delay to allow for postgres replication #1646 #2678
-                                window.setTimeout(function() {
-                                    loading.close();
-                                    context.flush();
-                                }, 2500);
-                            }
-                        });
+                    context.connection().putChangeset(changeset, changes, uploadCallback);
                 } else {        // changes were insignificant or reverted by user
+                    d3.select('.inspector-wrap *').remove();
                     loading.close();
                     context.flush();
                     cancel();
                 }
+            }
+        }
+
+
+        function uploadCallback(err, changeset) {
+            if (err) {
+                errors.push({
+                    msg: err.responseText,
+                    details: [ t('save.status_code', { code: err.status }) ]
+                });
+                showErrors();
+            } else {
+                history.clearSaved();
+                success(changeset);
+                // Add delay to allow for postgres replication #1646 #2678
+                window.setTimeout(function() {
+                    d3.select('.inspector-wrap *').remove();
+                    loading.close();
+                    context.flush();
+                }, 2500);
             }
         }
 
@@ -207,10 +240,10 @@ export function Save(context) {
 
             loading.close();
 
-            selection.call(Conflicts(context)
+            selection.call(uiConflicts(context)
                 .list(conflicts)
                 .on('download', function() {
-                    var data = JXON.stringify(context.connection().osmChangeJXON('CHANGEME', origChanges)),
+                    var data = JXON.stringify(changeset.update({ id: 'CHANGEME' }).osmChangeJXON(origChanges)),
                         win = window.open('data:text/xml,' + encodeURIComponent(data), '_blank');
                     win.focus();
                 })
@@ -225,22 +258,22 @@ export function Save(context) {
                             if (entity && entity.type === 'way') {
                                 var children = _.uniq(entity.nodes);
                                 for (var j = 0; j < children.length; j++) {
-                                    history.replace(Revert(children[j]));
+                                    history.replace(actionRevert(children[j]));
                                 }
                             }
-                            history.replace(Revert(conflicts[i].id));
+                            history.replace(actionRevert(conflicts[i].id));
                         }
                     }
 
                     selection.remove();
-                    save(e, true);
+                    save(changeset, true);
                 })
             );
         }
 
 
         function showErrors() {
-            var selection = confirm(context.container());
+            var selection = uiConfirm(context.container());
 
             history.pop();
             loading.close();
@@ -306,33 +339,45 @@ export function Save(context) {
     }
 
 
-    function success(e, changeset_id) {
-        context.enter(Browse(context)
-            .sidebar(Success(context)
-                .changeset({
-                    id: changeset_id,
-                    comment: e.comment
-                })
+    function success(changeset) {
+        commit.reset();
+        context.enter(modeBrowse(context)
+            .sidebar(uiSuccess(context)
+                .changeset(changeset)
                 .on('cancel', function() {
                     context.ui().sidebar.hide();
-                })));
+                })
+            )
+        );
     }
 
-    var mode = {
-        id: 'save'
-    };
 
     mode.enter = function() {
-        context.connection().authenticate(function(err) {
-            if (err) {
-                cancel();
-            } else {
-                context.ui().sidebar.show(ui);
-            }
-        });
+        function done() {
+            context.ui().sidebar.show(commit);
+        }
+
+        context.container().selectAll('#content')
+            .attr('class', 'inactive');
+
+        if (context.connection().authenticated()) {
+            done();
+        } else {
+            context.connection().authenticate(function(err) {
+                if (err) {
+                    cancel();
+                } else {
+                    done();
+                }
+            });
+        }
     };
 
+
     mode.exit = function() {
+        context.container().selectAll('#content')
+            .attr('class', 'active');
+
         context.ui().sidebar.hide();
     };
 

@@ -1,12 +1,12 @@
-describe('iD.actions.Circularize', function () {
-    var projection = d3.geo.mercator();
+describe('iD.actionCircularize', function () {
+    var projection = d3.geoMercator().scale(150);
 
     function isCircular(id, graph) {
         var points = _.map(graph.childNodes(graph.entity(id)), 'loc').map(projection),
-            centroid = d3.geom.polygon(points).centroid(),
-            radius = iD.geo.euclideanDistance(centroid, points[0]),
+            centroid = d3.polygonCentroid(points),
+            radius = iD.geoEuclideanDistance(centroid, points[0]),
             estArea = Math.PI * radius * radius,
-            trueArea = Math.abs(d3.geom.polygon(points).area()),
+            trueArea = Math.abs(d3.polygonArea(points)),
             pctDiff = (estArea - trueArea) / estArea;
 
         return (pctDiff < 0.025);   // within 2.5% of circular area..
@@ -24,7 +24,7 @@ describe('iD.actions.Circularize', function () {
                 iD.Way({id: '-', nodes: ['a', 'b', 'c', 'd', 'a']})
             ]);
 
-        graph = iD.actions.Circularize('-', projection)(graph);
+        graph = iD.actionCircularize('-', projection)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
         expect(graph.entity('-').nodes).to.have.length(20);
@@ -44,7 +44,7 @@ describe('iD.actions.Circularize', function () {
             ]),
             nodes;
 
-        graph = iD.actions.Circularize('-', projection)(graph);
+        graph = iD.actionCircularize('-', projection)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
 
@@ -69,10 +69,10 @@ describe('iD.actions.Circularize', function () {
                 iD.Way({id: '=', nodes: ['d']})
             ]);
 
-        graph = iD.actions.Circularize('-', projection)(graph);
+        graph = iD.actionCircularize('-', projection)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
-        expect(iD.geo.euclideanDistance(graph.entity('d').loc, [2, -2])).to.be.lt(0.5);
+        expect(iD.geoEuclideanDistance(graph.entity('d').loc, [2, -2])).to.be.lt(0.5);
     });
 
     function angle(point1, point2, center) {
@@ -80,10 +80,10 @@ describe('iD.actions.Circularize', function () {
             vector2 = [point2[0] - center[0], point2[1] - center[1]],
             distance;
 
-        distance = iD.geo.euclideanDistance(vector1, [0, 0]);
+        distance = iD.geoEuclideanDistance(vector1, [0, 0]);
         vector1 = [vector1[0] / distance, vector1[1] / distance];
 
-        distance = iD.geo.euclideanDistance(vector2, [0, 0]);
+        distance = iD.geoEuclideanDistance(vector2, [0, 0]);
         vector2 = [vector2[0] / distance, vector2[1] / distance];
 
         return 180 / Math.PI * Math.acos(vector1[0] * vector2[0] + vector1[1] * vector2[1]);
@@ -102,11 +102,11 @@ describe('iD.actions.Circularize', function () {
             ]),
             centroid, points;
 
-        graph = iD.actions.Circularize('-', projection, 20)(graph);
+        graph = iD.actionCircularize('-', projection, 20)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
         points = _.map(graph.childNodes(graph.entity('-')), 'loc').map(projection);
-        centroid = d3.geom.polygon(points).centroid();
+        centroid = d3.polygonCentroid(points);
 
         for (var i = 0; i < points.length - 1; i++) {
             expect(angle(points[i], points[i+1], centroid)).to.be.lte(20);
@@ -116,7 +116,7 @@ describe('iD.actions.Circularize', function () {
     });
 
     function area(id, graph) {
-        return d3.geom.polygon(_.map(graph.childNodes(graph.entity(id)), 'loc')).area();
+        return d3.polygonArea(_.map(graph.childNodes(graph.entity(id)), 'loc'));
     }
 
     it('leaves clockwise ways clockwise', function () {
@@ -133,7 +133,7 @@ describe('iD.actions.Circularize', function () {
 
         expect(area('+', graph)).to.be.gt(0);
 
-        graph = iD.actions.Circularize('+', projection)(graph);
+        graph = iD.actionCircularize('+', projection)(graph);
 
         expect(isCircular('+', graph)).to.be.ok;
         expect(area('+', graph)).to.be.gt(0);
@@ -153,7 +153,7 @@ describe('iD.actions.Circularize', function () {
 
         expect(area('-', graph)).to.be.lt(0);
 
-        graph = iD.actions.Circularize('-', projection)(graph);
+        graph = iD.actionCircularize('-', projection)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
         expect(area('-', graph)).to.be.lt(0);
@@ -185,7 +185,7 @@ describe('iD.actions.Circularize', function () {
         expect(graph.entity('-').isConvex(graph)).to.be.false;
         expect(graph.entity('=').isConvex(graph)).to.be.true;
 
-        graph = iD.actions.Circularize('-', projection)(graph);
+        graph = iD.actionCircularize('-', projection)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
         expect(_.intersection(graph.entity('-').nodes, graph.entity('=').nodes).length).to.be.gt(3);
@@ -219,7 +219,7 @@ describe('iD.actions.Circularize', function () {
         expect(graph.entity('-').isConvex(graph)).to.be.false;
         expect(graph.entity('=').isConvex(graph)).to.be.true;
 
-        graph = iD.actions.Circularize('-', projection)(graph);
+        graph = iD.actionCircularize('-', projection)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
         expect(_.intersection(graph.entity('-').nodes, graph.entity('=').nodes).length).to.be.gt(3);
@@ -250,7 +250,7 @@ describe('iD.actions.Circularize', function () {
 
         expect(graph.entity('-').isConvex(graph)).to.be.false;
 
-        graph = iD.actions.Circularize('-', projection)(graph);
+        graph = iD.actionCircularize('-', projection)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
         expect(graph.entity('-').isConvex(graph)).to.be.true;
@@ -266,9 +266,58 @@ describe('iD.actions.Circularize', function () {
 
         expect(area('-', graph)).to.eql(0);
 
-        graph = iD.actions.Circularize('-', projection)(graph);
+        graph = iD.actionCircularize('-', projection)(graph);
 
         expect(isCircular('-', graph)).to.be.ok;
+    });
+
+
+    describe('transitions', function () {
+        it('is transitionable', function() {
+            expect(iD.actionCircularize().transitionable).to.be.true;
+        });
+
+        it('circularize at t = 0', function() {
+            var graph = iD.Graph([
+                    iD.Node({id: 'a', loc: [0, 0]}),
+                    iD.Node({id: 'b', loc: [2, 0]}),
+                    iD.Node({id: 'c', loc: [2, 2]}),
+                    iD.Node({id: 'd', loc: [0, 2]}),
+                    iD.Way({id: '-', nodes: ['a', 'b', 'c', 'd', 'a']})
+                ]);
+            graph = iD.actionCircularize('-', projection)(graph, 0);
+            expect(isCircular('-', graph)).to.be.not.ok;
+            expect(graph.entity('-').nodes).to.have.length(20);
+            expect(area('-', graph)).to.be.closeTo(-4, 1e-2);
+        });
+
+        it('circularize at t = 0.5', function() {
+            var graph = iD.Graph([
+                    iD.Node({id: 'a', loc: [0, 0]}),
+                    iD.Node({id: 'b', loc: [2, 0]}),
+                    iD.Node({id: 'c', loc: [2, 2]}),
+                    iD.Node({id: 'd', loc: [0, 2]}),
+                    iD.Way({id: '-', nodes: ['a', 'b', 'c', 'd', 'a']})
+                ]);
+            graph = iD.actionCircularize('-', projection)(graph, 0.5);
+            expect(isCircular('-', graph)).to.be.not.ok;
+            expect(graph.entity('-').nodes).to.have.length(20);
+            expect(area('-', graph)).to.be.closeTo(-4.812, 1e-2);
+        });
+
+        it('circularize at t = 1', function() {
+            var graph = iD.Graph([
+                    iD.Node({id: 'a', loc: [0, 0]}),
+                    iD.Node({id: 'b', loc: [2, 0]}),
+                    iD.Node({id: 'c', loc: [2, 2]}),
+                    iD.Node({id: 'd', loc: [0, 2]}),
+                    iD.Way({id: '-', nodes: ['a', 'b', 'c', 'd', 'a']})
+                ]);
+            graph = iD.actionCircularize('-', projection)(graph, 1);
+            expect(isCircular('-', graph)).to.be.ok;
+            expect(graph.entity('-').nodes).to.have.length(20);
+            expect(area('-', graph)).to.be.closeTo(-6.168, 1e-2);
+        });
     });
 
 });

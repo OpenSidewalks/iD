@@ -1,6 +1,12 @@
-import { Relation, Way } from '../core/index';
-import { Split } from './split';
-import { inferRestriction } from '../geo/index';
+import { actionSplit } from './split';
+
+import {
+    osmInferRestriction,
+    osmRelation,
+    osmWay
+} from '../osm/index';
+
+
 // Create a restriction relation for `turn`, which must have the following structure:
 //
 //     {
@@ -15,7 +21,7 @@ import { inferRestriction } from '../geo/index';
 // (The action does not check that these entities form a valid intersection.)
 //
 // If `restriction` is not provided, it is automatically determined by
-// inferRestriction.
+// osmInferRestriction.
 //
 // If necessary, the `from` and `to` ways are split. In these cases, `from.node`
 // and `to.node` are used to determine which portion of the split ways become
@@ -25,7 +31,8 @@ import { inferRestriction } from '../geo/index';
 // Normally, this will be undefined and the relation will automatically
 // be assigned a new ID.
 //
-export function RestrictTurn(turn, projection, restrictionId) {
+export function actionRestrictTurn(turn, projection, restrictionId) {
+
     return function(graph) {
         var from = graph.entity(turn.from.way),
             via  = graph.entity(turn.via.node),
@@ -36,8 +43,8 @@ export function RestrictTurn(turn, projection, restrictionId) {
         }
 
         function split(toOrFrom) {
-            var newID = toOrFrom.newID || Way().id;
-            graph = Split(via.id, [newID])
+            var newID = toOrFrom.newID || osmWay().id;
+            graph = actionSplit(via.id, [newID])
                 .limitWays([toOrFrom.way])(graph);
 
             var a = graph.entity(newID),
@@ -69,12 +76,12 @@ export function RestrictTurn(turn, projection, restrictionId) {
             to = split(turn.to)[0];
         }
 
-        return graph.replace(Relation({
+        return graph.replace(osmRelation({
             id: restrictionId,
             tags: {
                 type: 'restriction',
                 restriction: turn.restriction ||
-                    inferRestriction(
+                    osmInferRestriction(
                         graph,
                         turn.from,
                         turn.via,

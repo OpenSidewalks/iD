@@ -1,20 +1,22 @@
-import { lonToMeters, metersToLon } from '../geo/index';
-import { Detect } from '../util/detect';
+import { geoLonToMeters, geoMetersToLon } from '../geo/index';
+import { utilDetect } from '../util/detect';
 
-export function Scale(context) {
+
+export function uiScale(context) {
     var projection = context.projection,
-        imperial = (Detect().locale.toLowerCase() === 'en-us'),
+        isImperial = (utilDetect().locale.toLowerCase() === 'en-us'),
         maxLength = 180,
         tickHeight = 8;
 
+
     function scaleDefs(loc1, loc2) {
         var lat = (loc2[1] + loc1[1]) / 2,
-            conversion = (imperial ? 3.28084 : 1),
-            dist = lonToMeters(loc2[0] - loc1[0], lat) * conversion,
+            conversion = (isImperial ? 3.28084 : 1),
+            dist = geoLonToMeters(loc2[0] - loc1[0], lat) * conversion,
             scale = { dist: 0, px: 0, text: '' },
             buckets, i, val, dLon;
 
-        if (imperial) {
+        if (isImperial) {
             buckets = [5280000, 528000, 52800, 5280, 500, 50, 5, 1];
         } else {
             buckets = [5000000, 500000, 50000, 5000, 500, 50, 5, 1];
@@ -26,13 +28,15 @@ export function Scale(context) {
             if (dist >= val) {
                 scale.dist = Math.floor(dist / val) * val;
                 break;
+            } else {
+                scale.dist = +dist.toFixed(2);
             }
         }
 
-        dLon = metersToLon(scale.dist / conversion, lat);
+        dLon = geoMetersToLon(scale.dist / conversion, lat);
         scale.px = Math.round(projection([loc1[0] + dLon, loc1[1]])[0]);
 
-        if (imperial) {
+        if (isImperial) {
             if (scale.dist >= 5280) {
                 scale.dist /= 5280;
                 scale.text = String(scale.dist) + ' mi';
@@ -51,6 +55,7 @@ export function Scale(context) {
         return scale;
     }
 
+
     function update(selection) {
         // choose loc1, loc2 along bottom of viewport (near where the scale will be drawn)
         var dims = context.map().dimensions(),
@@ -58,30 +63,38 @@ export function Scale(context) {
             loc2 = projection.invert([maxLength, dims[1]]),
             scale = scaleDefs(loc1, loc2);
 
-        selection.select('#scalepath')
+        selection.select('#scale-path')
             .attr('d', 'M0.5,0.5v' + tickHeight + 'h' + scale.px + 'v-' + tickHeight);
 
-        selection.select('#scaletext')
-            .attr('x', scale.px + 8)
-            .attr('y', tickHeight)
+        selection.select('#scale-textgroup')
+            .attr('transform', 'translate(' + (scale.px + 8) + ',' + tickHeight + ')');
+
+        selection.select('#scale-text')
             .text(scale.text);
     }
 
 
     return function(selection) {
         function switchUnits() {
-            imperial = !imperial;
+            isImperial = !isImperial;
             selection.call(update);
         }
 
-        var g = selection.append('svg')
+        var scalegroup = selection.append('svg')
             .attr('id', 'scale')
             .on('click', switchUnits)
             .append('g')
             .attr('transform', 'translate(10,11)');
 
-        g.append('path').attr('id', 'scalepath');
-        g.append('text').attr('id', 'scaletext');
+        scalegroup
+            .append('path')
+            .attr('id', 'scale-path');
+
+        scalegroup
+            .append('g')
+            .attr('id', 'scale-textgroup')
+            .append('text')
+            .attr('id', 'scale-text');
 
         selection.call(update);
 

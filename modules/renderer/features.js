@@ -1,6 +1,10 @@
+import * as d3 from 'd3';
 import _ from 'lodash';
-import { Entity } from '../core/index';
-export function Features(context) {
+import { osmEntity } from '../osm/index';
+import { utilRebind } from '../util/rebind';
+
+
+export function rendererFeatures(context) {
     var traffic_roads = {
         'motorway': true,
         'motorway_link': true,
@@ -52,11 +56,13 @@ export function Features(context) {
         _keys = [],
         _hidden = [];
 
+
     function update() {
         _hidden = features.hidden();
-        dispatch.change();
-        dispatch.redraw();
+        dispatch.call('change');
+        dispatch.call('redraw');
     }
+
 
     function defineFeature(k, filter, max) {
         _keys.push(k);
@@ -167,41 +173,48 @@ export function Features(context) {
 
     function features() {}
 
+
     features.features = function() {
         return _features;
     };
+
 
     features.keys = function() {
         return _keys;
     };
 
+
     features.enabled = function(k) {
         if (!arguments.length) {
-            return _.filter(_keys, function(k) { return _features[k].enabled; });
+            return _keys.filter(function(k) { return _features[k].enabled; });
         }
         return _features[k] && _features[k].enabled;
     };
 
+
     features.disabled = function(k) {
         if (!arguments.length) {
-            return _.reject(_keys, function(k) { return _features[k].enabled; });
+            return _keys.filter(function(k) { return !_features[k].enabled; });
         }
         return _features[k] && !_features[k].enabled;
     };
 
+
     features.hidden = function(k) {
         if (!arguments.length) {
-            return _.filter(_keys, function(k) { return _features[k].hidden(); });
+            return _keys.filter(function(k) { return _features[k].hidden(); });
         }
         return _features[k] && _features[k].hidden();
     };
 
+
     features.autoHidden = function(k) {
         if (!arguments.length) {
-            return _.filter(_keys, function(k) { return _features[k].autoHidden(); });
+            return _keys.filter(function(k) { return _features[k].autoHidden(); });
         }
         return _features[k] && _features[k].autoHidden();
     };
+
 
     features.enable = function(k) {
         if (_features[k] && !_features[k].enabled) {
@@ -210,12 +223,14 @@ export function Features(context) {
         }
     };
 
+
     features.disable = function(k) {
         if (_features[k] && _features[k].enabled) {
             _features[k].disable();
             update();
         }
     };
+
 
     features.toggle = function(k) {
         if (_features[k]) {
@@ -224,28 +239,34 @@ export function Features(context) {
         }
     };
 
+
     features.resetStats = function() {
-        _.each(_features, function(f) { f.count = 0; });
-        dispatch.change();
+        for (var i = 0; i < _keys.length; i++) {
+            _features[_keys[i]].count = 0;
+        }
+        dispatch.call('change');
     };
+
 
     features.gatherStats = function(d, resolver, dimensions) {
         var needsRedraw = false,
             type = _.groupBy(d, function(ent) { return ent.type; }),
             entities = [].concat(type.relation || [], type.way || [], type.node || []),
-            currHidden, geometry, matches;
+            currHidden, geometry, matches, i, j;
 
-        _.each(_features, function(f) { f.count = 0; });
+        for (i = 0; i < _keys.length; i++) {
+            _features[_keys[i]].count = 0;
+        }
 
         // adjust the threshold for point/building culling based on viewport size..
         // a _cullFactor of 1 corresponds to a 1000x1000px viewport..
         _cullFactor = dimensions[0] * dimensions[1] / 1000000;
 
-        for (var i = 0; i < entities.length; i++) {
+        for (i = 0; i < entities.length; i++) {
             geometry = entities[i].geometry(resolver);
             if (!(geometry === 'vertex' || geometry === 'relation')) {
                 matches = Object.keys(features.getMatches(entities[i], resolver, geometry));
-                for (var j = 0; j < matches.length; j++) {
+                for (j = 0; j < matches.length; j++) {
                     _features[matches[j]].count++;
                 }
             }
@@ -255,16 +276,21 @@ export function Features(context) {
         if (currHidden !== _hidden) {
             _hidden = currHidden;
             needsRedraw = true;
-            dispatch.change();
+            dispatch.call('change');
         }
 
         return needsRedraw;
     };
 
+
     features.stats = function() {
-        _.each(_keys, function(k) { _stats[k] = _features[k].count; });
+        for (var i = 0; i < _keys.length; i++) {
+            _stats[_keys[i]] = _features[_keys[i]].count;
+        }
+
         return _stats;
     };
+
 
     features.clear = function(d) {
         for (var i = 0; i < d.length; i++) {
@@ -272,18 +298,21 @@ export function Features(context) {
         }
     };
 
+
     features.clearEntity = function(entity) {
-        delete _cache[Entity.key(entity)];
+        delete _cache[osmEntity.key(entity)];
     };
+
 
     features.reset = function() {
         _cache = {};
     };
 
+
     features.getMatches = function(entity, resolver, geometry) {
         if (geometry === 'vertex' || geometry === 'relation') return {};
 
-        var ent = Entity.key(entity);
+        var ent = osmEntity.key(entity);
         if (!_cache[ent]) {
             _cache[ent] = {};
         }
@@ -298,7 +327,7 @@ export function Features(context) {
 
                     // Multipolygon members:
                     // If an entity...
-                    //   1. is a way that hasn't matched other "interesting" feature rules,
+                    //   1. is a way that hasn't matched other 'interesting' feature rules,
                     //   2. and it belongs to a single parent multipolygon relation
                     // ...then match whatever feature rules the parent multipolygon has matched.
                     // see #2548, #2887
@@ -309,7 +338,7 @@ export function Features(context) {
                     if (entity.type === 'way') {
                         var parents = features.getParents(entity, resolver, geometry);
                         if (parents.length === 1 && parents[0].isMultipolygon()) {
-                            var pkey = Entity.key(parents[0]);
+                            var pkey = osmEntity.key(parents[0]);
                             if (_cache[pkey] && _cache[pkey].matches) {
                                 matches = _.clone(_cache[pkey].matches);
                                 continue;
@@ -328,10 +357,11 @@ export function Features(context) {
         return _cache[ent].matches;
     };
 
+
     features.getParents = function(entity, resolver, geometry) {
         if (geometry === 'point') return [];
 
-        var ent = Entity.key(entity);
+        var ent = osmEntity.key(entity);
         if (!_cache[ent]) {
             _cache[ent] = {};
         }
@@ -348,6 +378,7 @@ export function Features(context) {
         return _cache[ent].parents;
     };
 
+
     features.isHiddenFeature = function(entity, resolver, geometry) {
         if (!_hidden.length) return false;
         if (!entity.version) return false;
@@ -359,6 +390,7 @@ export function Features(context) {
         }
         return false;
     };
+
 
     features.isHiddenChild = function(entity, resolver, geometry) {
         if (!_hidden.length) return false;
@@ -374,6 +406,7 @@ export function Features(context) {
         }
         return true;
     };
+
 
     features.hasHiddenConnections = function(entity, resolver) {
         if (!_hidden.length) return false;
@@ -397,6 +430,7 @@ export function Features(context) {
         }) : false;
     };
 
+
     features.isHidden = function(entity, resolver, geometry) {
         if (!_hidden.length) return false;
         if (!entity.version) return false;
@@ -404,6 +438,7 @@ export function Features(context) {
         var fn = (geometry === 'vertex' ? features.isHiddenChild : features.isHiddenFeature);
         return fn(entity, resolver, geometry);
     };
+
 
     features.filter = function(d, resolver) {
         if (!_hidden.length) return d;
@@ -418,5 +453,6 @@ export function Features(context) {
         return result;
     };
 
-    return d3.rebind(features, dispatch, 'on');
+
+    return utilRebind(features, dispatch, 'on');
 }

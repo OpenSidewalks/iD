@@ -1,36 +1,37 @@
-describe('access', function() {
-    var selection, field;
+describe('iD.uiFieldAccess', function() {
+    var context, selection, field;
+
     beforeEach(function() {
+        context = iD.Context();
         selection = d3.select(document.createElement('div'));
-        field = iD.Context(window)
-            .presets(iD.data.presets).presets().field('access');
+        field = context.presets().field('access');
     });
 
     it('creates inputs for a variety of modes of access', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
-        expect(selection.selectAll('.preset-access-access')[0].length).to.equal(1);
-        expect(selection.selectAll('.preset-access-foot')[0].length).to.equal(1);
-        expect(selection.selectAll('.preset-access-motor_vehicle')[0].length).to.equal(1);
-        expect(selection.selectAll('.preset-access-bicycle')[0].length).to.equal(1);
-        expect(selection.selectAll('.preset-access-horse')[0].length).to.equal(1);
+        expect(selection.selectAll('.preset-access-access').size()).to.equal(1);
+        expect(selection.selectAll('.preset-access-foot').size()).to.equal(1);
+        expect(selection.selectAll('.preset-access-motor_vehicle').size()).to.equal(1);
+        expect(selection.selectAll('.preset-access-bicycle').size()).to.equal(1);
+        expect(selection.selectAll('.preset-access-horse').size()).to.equal(1);
     });
 
     it('does not include "yes", "designated", "dismount" options for general access (#934), (#2213)', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         expect(_.map(access.options('access'), 'value')).not.to.include('yes');
         expect(_.map(access.options('access'), 'value')).not.to.include('designated');
         expect(_.map(access.options('access'), 'value')).not.to.include('dismount');
     });
 
     it('does include a "dismount" option for bicycles (#2726)', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         expect(_.map(access.options('bicycle'), 'value')).to.include('dismount');
         expect(_.map(access.options('foot'), 'value')).not.to.include('dismount');
     });
 
     it('sets foot placeholder to "yes" for steps and pedestrian', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
 
         access.tags({highway: 'steps'});
@@ -41,7 +42,7 @@ describe('access', function() {
     });
 
     it('sets foot placeholder to "designated" for footways', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
 
         access.tags({highway: 'footway'});
@@ -49,7 +50,7 @@ describe('access', function() {
     });
 
     it('sets bicycle placeholder to "designated" for cycleways', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
 
         access.tags({highway: 'cycleway'});
@@ -57,7 +58,7 @@ describe('access', function() {
     });
 
     it('sets horse placeholder to "designated" for bridleways', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
 
         access.tags({highway: 'bridleway'});
@@ -65,7 +66,7 @@ describe('access', function() {
     });
 
     it('sets motor_vehicle placeholder to "no" for footways, steps, pedestrian, cycleway, bridleway, and path', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
         ['footway', 'steps', 'pedestrian', 'cycleway', 'bridleway', 'path'].forEach(function(value) {
             access.tags({highway: value});
@@ -74,7 +75,7 @@ describe('access', function() {
     });
 
     it('sets motor_vehicle placeholder to "yes" for various other highway tags', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
         ['residential', 'motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'service',
          'unclassified', 'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link'].forEach(function(value) {
@@ -84,7 +85,7 @@ describe('access', function() {
     });
 
     it('overrides a "yes" or "designated" placeholder with more specific access tag (#2213)', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
 
         access.tags({highway: 'service', access: 'emergency'});
@@ -95,7 +96,7 @@ describe('access', function() {
     });
 
     it('overrides a "no" placeholder with more specific access tag (#2763)', function() {
-        var access = iD.ui.fields.access(field);
+        var access = iD.uiFieldAccess(field, context);
         selection.call(access);
 
         access.tags({highway: 'cycleway', access: 'destination'});

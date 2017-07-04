@@ -1,48 +1,63 @@
-import { t } from '../util/locale';
-import { Icon } from '../svg/index';
-import { cmd } from './cmd';
-import { tooltipHtml } from './tooltipHtml';
+import * as d3 from 'd3';
+import { d3keybinding } from '../lib/d3.keybinding.js';
+import { t, textDirection } from '../util/locale';
+import { svgIcon } from '../svg/index';
+import { uiCmd } from './cmd';
+import { uiTooltipHtml } from './tooltipHtml';
+import { tooltip } from '../util/tooltip';
 
-export function UndoRedo(context) {
+
+export function uiUndoRedo(context) {
     var commands = [{
         id: 'undo',
-        cmd: cmd('⌘Z'),
-        action: function() { if (!(context.inIntro() || saving())) context.undo(); },
+        cmd: uiCmd('⌘Z'),
+        action: function() { if (!saving()) context.undo(); },
         annotation: function() { return context.history().undoAnnotation(); }
     }, {
         id: 'redo',
-        cmd: cmd('⌘⇧Z'),
-        action: function() {if (!(context.inIntro() || saving())) context.redo(); },
+        cmd: uiCmd('⌘⇧Z'),
+        action: function() { if (!saving()) context.redo(); },
         annotation: function() { return context.history().redoAnnotation(); }
     }];
+
 
     function saving() {
         return context.mode().id === 'save';
     }
 
+
     return function(selection) {
-        var tooltip = bootstrap.tooltip()
+        var tooltipBehavior = tooltip()
             .placement('bottom')
             .html(true)
             .title(function (d) {
-                return tooltipHtml(d.annotation() ?
+                return uiTooltipHtml(d.annotation() ?
                     t(d.id + '.tooltip', {action: d.annotation()}) :
                     t(d.id + '.nothing'), d.cmd);
             });
 
         var buttons = selection.selectAll('button')
             .data(commands)
-            .enter().append('button')
-            .attr('class', 'col6 disabled')
+            .enter()
+            .append('button')
+            .attr('class', function(d) { return 'col6 disabled ' + d.id + '-button'; })
             .on('click', function(d) { return d.action(); })
-            .call(tooltip);
+            .call(tooltipBehavior);
 
         buttons.each(function(d) {
+            var iconName = d.id;
+            if (textDirection === 'rtl') {
+                if (iconName === 'undo') {
+                    iconName = 'redo';
+                } else if (iconName === 'redo') {
+                    iconName = 'undo';
+                }
+            }
             d3.select(this)
-                .call(Icon('#icon-' + d.id));
+                .call(svgIcon('#icon-' + iconName));
         });
 
-        var keybinding = d3.keybinding('undo')
+        var keybinding = d3keybinding('undo')
             .on(commands[0].cmd, function() { d3.event.preventDefault(); commands[0].action(); })
             .on(commands[1].cmd, function() { d3.event.preventDefault(); commands[1].action(); });
 
@@ -62,7 +77,7 @@ export function UndoRedo(context) {
                 .each(function() {
                     var selection = d3.select(this);
                     if (selection.property('tooltipVisible')) {
-                        selection.call(tooltip.show);
+                        selection.call(tooltipBehavior.show);
                     }
                 });
         }

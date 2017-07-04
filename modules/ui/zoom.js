@@ -1,10 +1,14 @@
-import { t } from '../util/locale';
-import { Icon } from '../svg/index';
-import { cmd } from './cmd';
-import { tooltipHtml } from './tooltipHtml';
+import * as d3 from 'd3';
 import _ from 'lodash';
+import { d3keybinding } from '../lib/d3.keybinding.js';
+import { t, textDirection } from '../util/locale';
+import { svgIcon } from '../svg/index';
+import { uiCmd } from './cmd';
+import { uiTooltipHtml } from './tooltipHtml';
+import { tooltip } from '../util/tooltip';
 
-export function Zoom(context) {
+
+export function uiZoom(context) {
     var zooms = [{
         id: 'zoom-in',
         icon: 'plus',
@@ -19,59 +23,62 @@ export function Zoom(context) {
         key: '-'
     }];
 
+
     function zoomIn() {
         d3.event.preventDefault();
-        if (!context.inIntro()) context.zoomIn();
+        context.zoomIn();
     }
+
 
     function zoomOut() {
         d3.event.preventDefault();
-        if (!context.inIntro()) context.zoomOut();
+        context.zoomOut();
     }
+
 
     function zoomInFurther() {
         d3.event.preventDefault();
-        if (!context.inIntro()) context.zoomInFurther();
+        context.zoomInFurther();
     }
+
 
     function zoomOutFurther() {
         d3.event.preventDefault();
-        if (!context.inIntro()) context.zoomOutFurther();
+        context.zoomOutFurther();
     }
 
 
     return function(selection) {
         var button = selection.selectAll('button')
             .data(zooms)
-            .enter().append('button')
+            .enter()
+            .append('button')
             .attr('tabindex', -1)
             .attr('class', function(d) { return d.id; })
             .on('click.editor', function(d) { d.action(); })
-            .call(bootstrap.tooltip()
-                .placement('left')
+            .call(tooltip()
+                .placement((textDirection === 'rtl') ? 'right' : 'left')
                 .html(true)
                 .title(function(d) {
-                    return tooltipHtml(d.title, d.key);
-                }));
+                    return uiTooltipHtml(d.title, d.key);
+                })
+            );
 
         button.each(function(d) {
             d3.select(this)
-                .call(Icon('#icon-' + d.icon, 'light'));
+                .call(svgIcon('#icon-' + d.icon, 'light'));
         });
 
-        var keybinding = d3.keybinding('zoom');
+        var keybinding = d3keybinding('zoom');
 
-        _.each(['=','ffequals','plus','ffplus'], function(key) {
-            keybinding.on(key, zoomIn);
-            keybinding.on('⇧' + key, zoomIn);
-            keybinding.on(cmd('⌘' + key), zoomInFurther);
-            keybinding.on(cmd('⌘⇧' + key), zoomInFurther);
+       _.each(['plus', 'ffplus', '=', 'ffequals'], function(key) {
+            keybinding.on([key], zoomIn);
+            keybinding.on([uiCmd('⌘' + key)], zoomInFurther);
         });
-        _.each(['-','ffminus','_','dash'], function(key) {
-            keybinding.on(key, zoomOut);
-            keybinding.on('⇧' + key, zoomOut);
-            keybinding.on(cmd('⌘' + key), zoomOutFurther);
-            keybinding.on(cmd('⌘⇧' + key), zoomOutFurther);
+
+        _.each(['_', '-', 'ffminus', 'dash'], function(key) {
+            keybinding.on([key], zoomOut);
+            keybinding.on([uiCmd('⌘' + key)], zoomOutFurther);
         });
 
         d3.select(document)

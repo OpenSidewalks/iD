@@ -3,7 +3,8 @@
     "fields": [
         "surface",
         "hoops",
-        "lit"
+        "lit",
+        "access_simple"
     ],
     "geometry": [
         "point",
@@ -12,6 +13,10 @@
     "tags": {
         "leisure": "pitch",
         "sport": "basketball"
+    },
+    "reference": {
+        "key": "sport",
+        "value": "basketball"
     },
     "terms": [],
     "name": "Basketball Court"

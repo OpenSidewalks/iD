@@ -1,34 +1,86 @@
-var fs = require('fs'),
-    path = require('path'),
-    glob = require('glob'),
-    YAML = require('js-yaml'),
-    _ = require('lodash'),
-    jsonschema = require('jsonschema'),
-    fieldSchema = require('./data/presets/schema/field.json'),
-    presetSchema = require('./data/presets/schema/preset.json'),
-    suggestions = require('./data/name-suggestions.json');
+/* eslint-disable no-console */
 
-function readtxt(f) {
-    return fs.readFileSync(f, 'utf8');
+const _ = require('lodash');
+const fs = require('fs');
+const glob = require('glob');
+const jsonschema = require('jsonschema');
+const path = require('path');
+const shell = require('shelljs');
+const YAML = require('js-yaml');
+
+const fieldSchema = require('./data/presets/schema/field.json');
+const presetSchema = require('./data/presets/schema/preset.json');
+const suggestions = require('name-suggestion-index/name-suggestions.json');
+
+
+// Create symlinks if necessary..  { 'target': 'source' }
+const symlinks = {
+    'land.html': 'dist/land.html',
+    'img': 'dist/img',
+};
+
+for (var target of Object.keys(symlinks)) {
+    if (!shell.test('-L', target)) {
+        console.log(`Creating symlink:  ${target} -> ${symlinks[target]}`);
+        shell.ln('-sf', symlinks[target], target);
+    }
 }
+
+
+// Translation strings
+var tstrings = {
+    categories: {},
+    fields: {},
+    presets: {}
+};
+
+
+// Start clean
+shell.rm('-f', [
+    'data/presets/categories.json',
+    'data/presets/fields.json',
+    'data/presets/presets.json',
+    'data/presets.yaml',
+    'data/taginfo.json',
+    'dist/locales/en.json'
+]);
+
+var categories = generateCategories();
+var fields = generateFields();
+var presets = generatePresets();
+var defaults = read('data/presets/defaults.json');
+var translations = generateTranslations(fields, presets);
+var taginfo = generateTaginfo(presets);
+
+// Additional consistency checks
+validateCategoryPresets(categories, presets);
+validatePresetFields(presets, fields);
+validateDefaults(defaults, categories, presets);
+
+// Save individual data files
+fs.writeFileSync('data/presets/categories.json', JSON.stringify({ categories: categories }, null, 4));
+fs.writeFileSync('data/presets/fields.json', JSON.stringify({ fields: fields }, null, 4));
+fs.writeFileSync('data/presets/presets.json', JSON.stringify({ presets: presets }, null, 4));
+fs.writeFileSync('data/presets.yaml', translationsToYAML(translations));
+fs.writeFileSync('data/taginfo.json', JSON.stringify(taginfo, null, 4));
+
+// Push changes from data/core.yaml into en.json
+var core = YAML.load(fs.readFileSync('data/core.yaml', 'utf8'));
+var en = _.merge(core, { en: { presets: tstrings }});
+fs.writeFileSync('dist/locales/en.json', JSON.stringify(en, null, 4));
+
+process.exit();
+
 
 function read(f) {
-    return JSON.parse(readtxt(f));
-}
-
-function r(f) {
-    return read(__dirname + '/data/' + f);
-}
-
-function rp(f) {
-    return r('presets/' + f);
+    return JSON.parse(fs.readFileSync(f, 'utf8'));
 }
 
 function validate(file, instance, schema) {
-    var result = jsonschema.validate(instance, schema);
-    if (result.length) {
-        console.error(file + ": ");
-        result.forEach(function(error) {
+    var validationErrors = jsonschema.validate(instance, schema).errors;
+    if (validationErrors.length) {
+        console.error(file + ': ');
+        validationErrors.forEach(function(error) {
             if (error.property) {
                 console.error(error.property + ' ' + error.message);
             } else {
@@ -39,19 +91,13 @@ function validate(file, instance, schema) {
     }
 }
 
-var translations = {
-    categories: {},
-    fields: {},
-    presets: {}
-};
-
 function generateCategories() {
     var categories = {};
     glob.sync(__dirname + '/data/presets/categories/*.json').forEach(function(file) {
         var field = read(file),
             id = 'category-' + path.basename(file, '.json');
 
-        translations.categories[id] = {name: field.name};
+        tstrings.categories[id] = {name: field.name};
 
         categories[id] = field;
     });
@@ -62,11 +108,11 @@ function generateFields() {
     var fields = {};
     glob.sync(__dirname + '/data/presets/fields/**/*.json').forEach(function(file) {
         var field = read(file),
-            id = file.match(/presets\/fields\/([^.]*)\.json/)[1];
+            id = stripLeadingUnderscores(file.match(/presets\/fields\/([^.]*)\.json/)[1]);
 
         validate(file, field, fieldSchema);
 
-        var t = translations.fields[id] = {
+        var t = tstrings.fields[id] = {
             label: field.label
         };
 
@@ -100,8 +146,8 @@ function suggestionsToPresets(presets) {
                     delete existing[name];
                 }
                 if (!existing[name]) {
-                    tags = _.extend({name: name}, suggestions[key][value][name].tags);
-                    addSuggestion(item, tags, name, count);
+                    tags = _.extend({name: name.replace(/"/g, '')}, suggestions[key][value][name].tags);
+                    addSuggestion(item, tags, name.replace(/"/g, ''), count);
                 }
             }
         }
@@ -116,7 +162,7 @@ function suggestionsToPresets(presets) {
             return;
         }
 
-        presets[category] = {
+        presets[category.replace(/"/g, '')] = {
             tags: parent.tags ? _.merge(tags, parent.tags) : tags,
             name: name,
             icon: parent.icon,
@@ -134,16 +180,20 @@ function suggestionsToPresets(presets) {
     return presets;
 }
 
+function stripLeadingUnderscores(str) {
+    return str.split('/').map(function(s) { return s.replace(/^_/,''); }).join('/');
+}
+
 function generatePresets() {
     var presets = {};
 
     glob.sync(__dirname + '/data/presets/presets/**/*.json').forEach(function(file) {
         var preset = read(file),
-            id = file.match(/presets\/presets\/([^.]*)\.json/)[1];
+            id = stripLeadingUnderscores(file.match(/presets\/presets\/([^.]*)\.json/)[1]);
 
         validate(file, preset, presetSchema);
 
-        translations.presets[id] = {
+        tstrings.presets[id] = {
             name: preset.name,
             terms: (preset.terms || []).join(',')
         };
@@ -155,10 +205,10 @@ function generatePresets() {
 
 }
 
-function generateTranslate(fields, presets) {
-    var translate = _.cloneDeep(translations);
+function generateTranslations(fields, presets) {
+    var translations = _.cloneDeep(tstrings);
 
-    _.forEach(translate.fields, function(field, id) {
+    _.forEach(translations.fields, function(field, id) {
         var f = fields[id];
         if (f.keys) {
             field['label#'] = _.each(f.keys).map(function(key) { return key + '=*'; }).join(', ');
@@ -185,16 +235,58 @@ function generateTranslate(fields, presets) {
         }
     });
 
-    _.forEach(translate.presets, function(preset, id) {
+    _.forEach(translations.presets, function(preset, id) {
         var p = presets[id];
         if (!_.isEmpty(p.tags))
             preset['name#'] = _.toPairs(p.tags).map(function(pair) { return pair[0] + '=' + pair[1]; }).join(', ');
-        if (p.terms && p.terms.length)
-            preset['terms#'] = 'terms: ' + p.terms.join();
-        preset.terms = "<translate with synonyms or related terms for '" + preset.name + "', separated by commas>";
+        if (p.searchable !== false) {
+            if (p.terms && p.terms.length)
+                preset['terms#'] = 'terms: ' + p.terms.join();
+            preset.terms = '<translate with synonyms or related terms for \'' + preset.name + '\', separated by commas>';
+        } else {
+            delete preset.terms;
+        }
     });
 
-    return translate;
+    return translations;
+}
+
+function generateTaginfo(presets) {
+    var taginfo = {
+        'data_format': 1,
+        'data_url': 'https://raw.githubusercontent.com/openstreetmap/iD/master/data/taginfo.json',
+        'project': {
+            'name': 'iD Editor',
+            'description': 'Online editor for OSM data.',
+            'project_url': 'https://github.com/openstreetmap/iD',
+            'doc_url': 'https://github.com/openstreetmap/iD/blob/master/data/presets/README.md',
+            'icon_url': 'https://raw.githubusercontent.com/openstreetmap/iD/master/dist/img/logo.png',
+            'keywords': [
+                'editor'
+            ]
+        },
+        'tags': []
+    };
+
+    _.forEach(presets, function(preset) {
+        if (preset.suggestion)
+            return;
+
+        var keys = Object.keys(preset.tags),
+            last = keys[keys.length - 1],
+            tag = { key: last };
+
+        if (!last)
+            return;
+
+        if (preset.tags[last] !== '*') {
+            tag.value = preset.tags[last];
+        }
+
+        taginfo.tags.push(tag);
+    });
+
+    return taginfo;
 }
 
 function validateCategoryPresets(categories, presets) {
@@ -223,93 +315,25 @@ function validatePresetFields(presets, fields) {
     });
 }
 
-// comment keys end with '#' and should sort immediately before their related key.
-function sortKeys(a, b) {
-    return (a === b + '#') ? -1
-        : (b === a + '#') ? 1
-        : (a > b ? 1 : a < b ? -1 : 0);
+function validateDefaults (defaults, categories, presets) {
+    _.forEach(defaults.defaults, function (members, name) {
+        members.forEach(function (id) {
+            if (!presets[id] && !categories[id]) {
+                console.error('Unknown category or preset: ' + id + ' in default ' + name);
+                process.exit(1);
+            }
+        });
+    });
 }
 
-var categories = generateCategories(),
-    fields = generateFields(),
-    presets = generatePresets(),
-    translate = generateTranslate(fields, presets);
-
-// additional consistency checks
-validateCategoryPresets(categories, presets);
-validatePresetFields(presets, fields);
-
-// Save individual data files
-fs.writeFileSync('data/presets/categories.json', JSON.stringify(categories, null, 4));
-fs.writeFileSync('data/presets/fields.json', JSON.stringify(fields, null, 4));
-fs.writeFileSync('data/presets/presets.json', JSON.stringify(presets, null, 4));
-fs.writeFileSync('data/presets.yaml',
-    YAML.safeDump({en: {presets: translate}}, {sortKeys: sortKeys, lineWidth: -1})
-        .replace(/\'.*#\':/g, '#')
-);
-
-// Write taginfo data
-var taginfo = {
-    "data_format": 1,
-    "data_url": "https://raw.githubusercontent.com/openstreetmap/iD/master/data/taginfo.json",
-    "project": {
-        "name": "iD Editor",
-        "description": "Online editor for OSM data.",
-        "project_url": "https://github.com/openstreetmap/iD",
-        "doc_url": "https://github.com/openstreetmap/iD/blob/master/data/presets/README.md",
-        "icon_url": "https://raw.githubusercontent.com/openstreetmap/iD/master/dist/img/logo.png",
-        "keywords": [
-            "editor"
-        ]
-    },
-    "tags": []
-};
-
-_.forEach(presets, function(preset) {
-    if (preset.suggestion)
-        return;
-
-    var keys = Object.keys(preset.tags),
-        last = keys[keys.length - 1],
-        tag = {key: last};
-
-    if (!last)
-        return;
-
-    if (preset.tags[last] !== '*') {
-        tag.value = preset.tags[last];
+function translationsToYAML(translations) {
+    // comment keys end with '#' and should sort immediately before their related key.
+    function commentFirst(a, b) {
+        return (a === b + '#') ? -1
+            : (b === a + '#') ? 1
+            : (a > b ? 1 : a < b ? -1 : 0);
     }
 
-    taginfo.tags.push(tag);
-});
-
-fs.writeFileSync('data/taginfo.json', JSON.stringify(taginfo, null, 4));
-
-// Push changes from data/core.yaml into en.json
-var core = YAML.load(fs.readFileSync('data/core.yaml', 'utf8'));
-var presets = {en: {presets: translations}};
-var en = _.merge(core, presets);
-fs.writeFileSync('dist/locales/en.json', JSON.stringify(en.en, null, 4));
-
-fs.writeFileSync('data/data.js', 'iD.data = ' + JSON.stringify({
-    deprecated: r('deprecated.json'),
-    discarded: r('discarded.json'),
-    wikipedia: r('wikipedia.json'),
-    imperial: r('imperial.json'),
-    featureIcons: r('feature-icons.json'),
-    locales: r('locales.json'),
-    en: read('dist/locales/en.json'),
-    suggestions: r('name-suggestions.json'),
-    addressFormats: r('address-formats.json'),
-    phoneFormats: r('phone-formats.json'),
-    driveLeft: r('drive-left.json')
-}) + ';');
-
-fs.writeFileSync('dist/presets.js', 'iD.data.presets = ' + JSON.stringify({
-    presets: rp('presets.json'),
-    defaults: rp('defaults.json'),
-    categories: rp('categories.json'),
-    fields: rp('fields.json')
-}) + ';');
-
-fs.writeFileSync('dist/imagery.js', 'iD.data.imagery = ' + JSON.stringify(r('imagery.json')) + ';');
+    return YAML.safeDump({ en: { presets: translations }}, { sortKeys: commentFirst, lineWidth: -1 })
+        .replace(/\'.*#\':/g, '#');
+}

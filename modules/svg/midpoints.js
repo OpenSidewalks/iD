@@ -1,9 +1,28 @@
 import _ from 'lodash';
-import { PointTransform, TagClasses } from './index';
-import { angle, euclideanDistance, interp, lineIntersection } from '../geo/index';
+import {
+    svgPointTransform,
+    svgTagClasses
+} from './index';
 
-export function Midpoints(projection, context) {
-    return function drawMidpoints(surface, graph, entities, filter, extent) {
+import {
+    geoAngle,
+    geoEuclideanDistance,
+    geoInterp,
+    geoLineIntersection
+} from '../geo/index';
+
+
+export function svgMidpoints(projection, context) {
+
+    return function drawMidpoints(selection, graph, entities, filter, extent) {
+        var layer = selection.selectAll('.layer-hit');
+
+        var mode = context.mode();
+        if (mode && mode.id !== 'select') {
+            layer.selectAll('g.midpoint').remove();
+            return;
+        }
+
         var poly = extent.polygon(),
             midpoints = {};
 
@@ -27,18 +46,18 @@ export function Midpoints(projection, context) {
                 if (midpoints[id]) {
                     midpoints[id].parents.push(entity);
                 } else {
-                    if (euclideanDistance(projection(a.loc), projection(b.loc)) > 40) {
-                        var point = interp(a.loc, b.loc, 0.5),
+                    if (geoEuclideanDistance(projection(a.loc), projection(b.loc)) > 40) {
+                        var point = geoInterp(a.loc, b.loc, 0.5),
                             loc = null;
 
                         if (extent.intersects(point)) {
                             loc = point;
                         } else {
                             for (var k = 0; k < 4; k++) {
-                                point = lineIntersection([a.loc, b.loc], [poly[k], poly[k+1]]);
+                                point = geoLineIntersection([a.loc, b.loc], [poly[k], poly[k + 1]]);
                                 if (point &&
-                                    euclideanDistance(projection(a.loc), projection(point)) > 20 &&
-                                    euclideanDistance(projection(b.loc), projection(point)) > 20)
+                                    geoEuclideanDistance(projection(a.loc), projection(point)) > 20 &&
+                                    geoEuclideanDistance(projection(b.loc), projection(point)) > 20)
                                 {
                                     loc = point;
                                     break;
@@ -60,20 +79,28 @@ export function Midpoints(projection, context) {
             }
         }
 
+
         function midpointFilter(d) {
             if (midpoints[d.id])
                 return true;
 
-            for (var i = 0; i < d.parents.length; i++)
-                if (filter(d.parents[i]))
+            for (var i = 0; i < d.parents.length; i++) {
+                if (filter(d.parents[i])) {
                     return true;
+                }
+            }
 
             return false;
         }
 
-        var groups = surface.selectAll('.layer-hit').selectAll('g.midpoint')
+
+        var groups = layer
+            .selectAll('g.midpoint')
             .filter(midpointFilter)
             .data(_.values(midpoints), function(d) { return d.id; });
+
+        groups.exit()
+            .remove();
 
         var enter = groups.enter()
             .insert('g', ':first-child')
@@ -87,15 +114,16 @@ export function Midpoints(projection, context) {
             .attr('points', '-3,4 5,0 -3,-4')
             .attr('class', 'fill');
 
-        groups
+        groups = groups
+            .merge(enter)
             .attr('transform', function(d) {
-                var translate = PointTransform(projection),
-                    a = context.entity(d.edge[0]),
-                    b = context.entity(d.edge[1]),
-                    angleVal = Math.round(angle(a, b, projection) * (180 / Math.PI));
+                var translate = svgPointTransform(projection),
+                    a = graph.entity(d.edge[0]),
+                    b = graph.entity(d.edge[1]),
+                    angleVal = Math.round(geoAngle(a, b, projection) * (180 / Math.PI));
                 return translate(d) + ' rotate(' + angleVal + ')';
             })
-            .call(TagClasses().tags(
+            .call(svgTagClasses().tags(
                 function(d) { return d.parents[0].tags; }
             ));
 
@@ -103,7 +131,5 @@ export function Midpoints(projection, context) {
         groups.select('polygon.shadow');
         groups.select('polygon.fill');
 
-        groups.exit()
-            .remove();
     };
 }

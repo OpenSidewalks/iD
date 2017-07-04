@@ -17,6 +17,10 @@
         "footway": "sidewalk",
         "project":"OpenSidewalks"
     },
+    "reference": {
+        "key": "footway",
+        "value": "sidewalk"
+    },
     "terms": [],
     "name": "Sidewalk"
 }

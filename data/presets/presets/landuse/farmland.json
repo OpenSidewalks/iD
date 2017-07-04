@@ -1,7 +1,9 @@
 {
     "icon": "farm",
     "fields": [
-        "crop"
+        "operator",
+        "crop",
+        "produce"
     ],
     "geometry": [
         "area"
@@ -9,6 +11,10 @@
     "tags": {
         "landuse": "farmland"
     },
-    "terms": [],
+    "terms": [
+        "crop",
+        "grow",
+        "plant"
+    ],
     "name": "Farmland"
 }

@@ -1,10 +1,16 @@
 import { t } from '../util/locale';
-import { AddEntity, AddMidpoint, AddVertex } from '../actions/index';
-import { Node, Way } from '../core/index';
-import { AddWay } from '../behavior/index';
-import { DrawArea } from './index';
+import {
+    actionAddEntity,
+    actionAddMidpoint,
+    actionAddVertex
+} from '../actions/index';
 
-export function AddArea(context) {
+import { behaviorAddWay } from '../behavior/index';
+import { modeDrawArea } from './index';
+import { osmNode, osmWay } from '../osm/index';
+
+
+export function modeAddArea(context) {
     var mode = {
         id: 'add-area',
         button: 'area',
@@ -13,61 +19,77 @@ export function AddArea(context) {
         key: '3'
     };
 
-    var behavior = AddWay(context)
+    var behavior = behaviorAddWay(context)
             .tail(t('modes.add_area.tail'))
             .on('start', start)
             .on('startFromWay', startFromWay)
             .on('startFromNode', startFromNode),
-        defaultTags = {area: 'yes'};
+        defaultTags = { area: 'yes' };
+
+
+    function actionClose(wayId) {
+        return function (graph) {
+            return graph.replace(graph.entity(wayId).close());
+        };
+    }
+
 
     function start(loc) {
-        var graph = context.graph(),
-            node = Node({loc: loc}),
-            way = Way({tags: defaultTags});
+        var startGraph = context.graph(),
+            node = osmNode({ loc: loc }),
+            way = osmWay({ tags: defaultTags });
 
         context.perform(
-            AddEntity(node),
-            AddEntity(way),
-            AddVertex(way.id, node.id),
-            AddVertex(way.id, node.id));
+            actionAddEntity(node),
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id),
+            actionClose(way.id)
+        );
 
-        context.enter(DrawArea(context, way.id, graph));
+        context.enter(modeDrawArea(context, way.id, startGraph));
     }
+
 
     function startFromWay(loc, edge) {
-        var graph = context.graph(),
-            node = Node({loc: loc}),
-            way = Way({tags: defaultTags});
+        var startGraph = context.graph(),
+            node = osmNode({ loc: loc }),
+            way = osmWay({ tags: defaultTags });
 
         context.perform(
-            AddEntity(node),
-            AddEntity(way),
-            AddVertex(way.id, node.id),
-            AddVertex(way.id, node.id),
-            AddMidpoint({ loc: loc, edge: edge }, node));
+            actionAddEntity(node),
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id),
+            actionClose(way.id),
+            actionAddMidpoint({ loc: loc, edge: edge }, node)
+        );
 
-        context.enter(DrawArea(context, way.id, graph));
+        context.enter(modeDrawArea(context, way.id, startGraph));
     }
+
 
     function startFromNode(node) {
-        var graph = context.graph(),
-            way = Way({tags: defaultTags});
+        var startGraph = context.graph(),
+            way = osmWay({ tags: defaultTags });
 
         context.perform(
-            AddEntity(way),
-            AddVertex(way.id, node.id),
-            AddVertex(way.id, node.id));
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id),
+            actionClose(way.id)
+        );
 
-        context.enter(DrawArea(context, way.id, graph));
+        context.enter(modeDrawArea(context, way.id, startGraph));
     }
+
 
     mode.enter = function() {
         context.install(behavior);
     };
 
+
     mode.exit = function() {
         context.uninstall(behavior);
     };
+
 
     return mode;
 }
