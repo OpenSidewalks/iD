@@ -5031,6 +5031,22 @@
             },
             "name": "Emergency Phone"
         },
+        "entrance_no_project_tag": {
+            "icon": "entrance-alt1",
+            "geometry": [
+                "vertex"
+            ],
+            "tags": {
+                "entrance": "*"
+            },
+            "fields": [
+                "entrance",
+                "access_simple",
+                "wheelchair",
+                "address"
+            ],
+            "name": "Entrance/Exit"
+        },
         "entrance": {
             "icon": "entrance-alt1",
             "geometry": [
@@ -5061,7 +5077,8 @@
             ],
             "tags": {
                 "highway": "footway",
-                "footway": "crossing"
+                "footway": "crossing",
+                "comment": "/* Note: should match crosswalk instead of this one. */"
             },
             "reference": {
                 "key": "footway",
@@ -5069,6 +5086,29 @@
             },
             "terms": [],
             "name": "Street Crossing"
+        },
+        "footway/crosswalk_no_project_tag": {
+            "icon": "highway-footway",
+            "fields": [
+                "surface",
+                "access",
+                "wheelchair",
+                "crossing",
+                "tactile_paving"
+            ],
+            "geometry": [
+                "line"
+            ],
+            "tags": {
+                "highway": "footway",
+                "footway": "crossing"
+            },
+            "reference": {
+                "key": "highway",
+                "value": "crossing"
+            },
+            "terms": [],
+            "name": "Pedestrian Crosswalk"
         },
         "footway/crosswalk": {
             "icon": "highway-footway",
@@ -5085,17 +5125,33 @@
             "tags": {
                 "highway": "footway",
                 "footway": "crossing",
-                "crossing": "zebra",
                 "project": "OpenSidewalks"
             },
             "reference": {
                 "key": "highway",
                 "value": "crossing"
             },
-            "terms": [
-                "zebra crossing"
-            ],
+            "terms": [],
             "name": "Pedestrian Crosswalk"
+        },
+        "footway/curbramp_no_project_tag": {
+            "fields": [
+                "access",
+                "wheelchair",
+                "kerb",
+                "height",
+                "tactile_paving",
+                "width",
+                "landing_width"
+            ],
+            "geometry": [
+                "vertex"
+            ],
+            "tags": {
+                "kerb": "lowered"
+            },
+            "terms": [],
+            "name": "Sidewalk Curb Ramp"
         },
         "footway/curbramp": {
             "fields": [
@@ -5116,6 +5172,31 @@
             },
             "terms": [],
             "name": "Sidewalk Curb Ramp"
+        },
+        "footway/sidewalk_no_project_tag": {
+            "icon": "highway-footway",
+            "fields": [
+                "surface",
+                "access",
+                "wheelchair",
+                "width",
+                "shade",
+                "lit",
+                "structure"
+            ],
+            "geometry": [
+                "line"
+            ],
+            "tags": {
+                "highway": "footway",
+                "footway": "sidewalk"
+            },
+            "reference": {
+                "key": "footway",
+                "value": "sidewalk"
+            },
+            "terms": [],
+            "name": "Sidewalk"
         },
         "footway/sidewalk": {
             "icon": "highway-footway",
@@ -5390,7 +5471,7 @@
             ],
             "name": "Indoor Corridor"
         },
-        "highway/crossing": {
+        "highway/crossing_no_project_tag": {
             "fields": [
                 "crossing",
                 "wheelchair",
@@ -5402,6 +5483,27 @@
             ],
             "tags": {
                 "highway": "crossing"
+            },
+            "reference": {
+                "key": "footway",
+                "value": "crossing"
+            },
+            "terms": [],
+            "name": "Street Crossing"
+        },
+        "highway/crossing": {
+            "fields": [
+                "crossing",
+                "wheelchair",
+                "kerb",
+                "tactile_paving"
+            ],
+            "geometry": [
+                "vertex"
+            ],
+            "tags": {
+                "highway": "crossing",
+                "project": "OpenSidewalks"
             },
             "reference": {
                 "key": "footway",
@@ -5474,6 +5576,32 @@
                 "lift"
             ],
             "name": "Elevator"
+        },
+        "highway/footway_no_project_tag": {
+            "icon": "highway-footway",
+            "fields": [
+                "surface",
+                "wheelchair",
+                "lit",
+                "width",
+                "structure",
+                "access"
+            ],
+            "geometry": [
+                "line",
+                "area"
+            ],
+            "terms": [
+                "hike",
+                "hiking",
+                "trackway",
+                "trail",
+                "walk"
+            ],
+            "tags": {
+                "highway": "footway"
+            },
+            "name": "Foot Path"
         },
         "highway/footway": {
             "icon": "highway-footway",
@@ -5761,6 +5889,30 @@
                 "track"
             ],
             "name": "Racetrack (Motorsport)"
+        },
+        "highway/ramp_no_project_tag": {
+            "fields": [
+                "surface",
+                "wheelchair",
+                "lit",
+                "width",
+                "incline_steps",
+                "handrail"
+            ],
+            "icon": "highway-path",
+            "geometry": [
+                "line"
+            ],
+            "tags": {
+                "highway": "steps",
+                "ramp": "yes"
+            },
+            "terms": [
+                "ramp",
+                "stairs",
+                "staircase"
+            ],
+            "name": "Ramp"
         },
         "highway/ramp": {
             "fields": [
@@ -6057,6 +6209,29 @@
             },
             "terms": [],
             "name": "Speed Camera"
+        },
+        "highway/steps_no_project_tag": {
+            "icon": "highway-steps",
+            "fields": [
+                "surface",
+                "lit",
+                "width",
+                "incline_steps",
+                "handrail",
+                "step_count"
+            ],
+            "geometry": [
+                "line"
+            ],
+            "tags": {
+                "highway": "steps"
+            },
+            "terms": [
+                "ramp",
+                "stairs",
+                "staircase"
+            ],
+            "name": "Steps"
         },
         "highway/steps": {
             "icon": "highway-steps",

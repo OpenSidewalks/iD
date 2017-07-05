@@ -12,8 +12,7 @@
     ],
     "tags": {
         "highway": "footway",
-        "footway": "crossing",
-        "project":"OpenSidewalks"
+        "footway": "crossing"
     },
     "reference": {
         "key": "highway",

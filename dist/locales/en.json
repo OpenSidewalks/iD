@@ -3223,6 +3223,10 @@
                     "name": "Emergency Phone",
                     "terms": ""
                 },
+                "entrance_no_project_tag": {
+                    "name": "Entrance/Exit",
+                    "terms": ""
+                },
                 "entrance": {
                     "name": "Entrance/Exit",
                     "terms": ""
@@ -3231,12 +3235,24 @@
                     "name": "Street Crossing",
                     "terms": ""
                 },
+                "footway/crosswalk_no_project_tag": {
+                    "name": "Pedestrian Crosswalk",
+                    "terms": ""
+                },
                 "footway/crosswalk": {
                     "name": "Pedestrian Crosswalk",
-                    "terms": "zebra crossing"
+                    "terms": ""
+                },
+                "footway/curbramp_no_project_tag": {
+                    "name": "Sidewalk Curb Ramp",
+                    "terms": ""
                 },
                 "footway/curbramp": {
                     "name": "Sidewalk Curb Ramp",
+                    "terms": ""
+                },
+                "footway/sidewalk_no_project_tag": {
+                    "name": "Sidewalk",
                     "terms": ""
                 },
                 "footway/sidewalk": {
@@ -3303,6 +3319,10 @@
                     "name": "Indoor Corridor",
                     "terms": "gallery,hall,hallway,indoor,passage,passageway"
                 },
+                "highway/crossing_no_project_tag": {
+                    "name": "Street Crossing",
+                    "terms": ""
+                },
                 "highway/crossing": {
                     "name": "Street Crossing",
                     "terms": ""
@@ -3318,6 +3338,10 @@
                 "highway/elevator": {
                     "name": "Elevator",
                     "terms": "lift"
+                },
+                "highway/footway_no_project_tag": {
+                    "name": "Foot Path",
+                    "terms": "hike,hiking,trackway,trail,walk"
                 },
                 "highway/footway": {
                     "name": "Foot Path",
@@ -3366,6 +3390,10 @@
                 "highway/raceway": {
                     "name": "Racetrack (Motorsport)",
                     "terms": "auto*,formula one,kart,motocross,nascar,race*,track"
+                },
+                "highway/ramp_no_project_tag": {
+                    "name": "Ramp",
+                    "terms": "ramp,stairs,staircase"
                 },
                 "highway/ramp": {
                     "name": "Ramp",
@@ -3422,6 +3450,10 @@
                 "highway/speed_camera": {
                     "name": "Speed Camera",
                     "terms": ""
+                },
+                "highway/steps_no_project_tag": {
+                    "name": "Steps",
+                    "terms": "ramp,stairs,staircase"
                 },
                 "highway/steps": {
                     "name": "Steps",

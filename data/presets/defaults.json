@@ -16,6 +16,7 @@
         ],
         "vertex": [
             "footway/curbramp",
+            "highway/crossing",
             "entrance",
             "vertex"
         ],

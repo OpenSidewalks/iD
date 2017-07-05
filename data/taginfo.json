@@ -1047,8 +1047,15 @@
             "value": "phone"
         },
         {
+            "key": "entrance"
+        },
+        {
             "key": "project",
             "value": "OpenSidewalks"
+        },
+        {
+            "key": "comment",
+            "value": "/* Note: should match crosswalk instead of this one. */"
         },
         {
             "key": "footway",
@@ -1059,8 +1066,16 @@
             "value": "OpenSidewalks"
         },
         {
+            "key": "kerb",
+            "value": "lowered"
+        },
+        {
             "key": "project",
             "value": "OpenSidewalks"
+        },
+        {
+            "key": "footway",
+            "value": "sidewalk"
         },
         {
             "key": "project",
@@ -1135,12 +1150,20 @@
             "value": "OpenSidewalks"
         },
         {
+            "key": "project",
+            "value": "OpenSidewalks"
+        },
+        {
             "key": "highway",
             "value": "cycleway"
         },
         {
             "key": "highway",
             "value": "elevator"
+        },
+        {
+            "key": "highway",
+            "value": "footway"
         },
         {
             "key": "project",
@@ -1189,6 +1212,10 @@
         {
             "key": "highway",
             "value": "raceway"
+        },
+        {
+            "key": "ramp",
+            "value": "yes"
         },
         {
             "key": "project",
@@ -1245,6 +1272,10 @@
         {
             "key": "highway",
             "value": "speed_camera"
+        },
+        {
+            "key": "highway",
+            "value": "steps"
         },
         {
             "key": "project",

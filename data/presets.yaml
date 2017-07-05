@@ -2491,21 +2491,36 @@ en:
         # 'entrance=*, project=OpenSidewalks'
         name: Entrance/Exit
         terms: '<translate with synonyms or related terms for ''Entrance/Exit'', separated by commas>'
+      entrance_no_project_tag:
+        # entrance=*
+        name: Entrance/Exit
+        terms: '<translate with synonyms or related terms for ''Entrance/Exit'', separated by commas>'
       footway/crossing:
-        # 'highway=footway, footway=crossing'
+        # 'highway=footway, footway=crossing, comment=/* Note: should match crosswalk instead of this one. */'
         name: Street Crossing
         terms: '<translate with synonyms or related terms for ''Street Crossing'', separated by commas>'
       footway/crosswalk:
-        # 'highway=footway, footway=crossing, crossing=zebra, project=OpenSidewalks'
+        # 'highway=footway, footway=crossing, project=OpenSidewalks'
         name: Pedestrian Crosswalk
-        # 'terms: zebra crossing'
+        terms: '<translate with synonyms or related terms for ''Pedestrian Crosswalk'', separated by commas>'
+      footway/crosswalk_no_project_tag:
+        # 'highway=footway, footway=crossing'
+        name: Pedestrian Crosswalk
         terms: '<translate with synonyms or related terms for ''Pedestrian Crosswalk'', separated by commas>'
       footway/curbramp:
         # 'kerb=lowered, project=OpenSidewalks'
         name: Sidewalk Curb Ramp
         terms: '<translate with synonyms or related terms for ''Sidewalk Curb Ramp'', separated by commas>'
+      footway/curbramp_no_project_tag:
+        # kerb=lowered
+        name: Sidewalk Curb Ramp
+        terms: '<translate with synonyms or related terms for ''Sidewalk Curb Ramp'', separated by commas>'
       footway/sidewalk:
         # 'highway=footway, footway=sidewalk, project=OpenSidewalks'
+        name: Sidewalk
+        terms: '<translate with synonyms or related terms for ''Sidewalk'', separated by commas>'
+      footway/sidewalk_no_project_tag:
+        # 'highway=footway, footway=sidewalk'
         name: Sidewalk
         terms: '<translate with synonyms or related terms for ''Sidewalk'', separated by commas>'
       ford:
@@ -2577,6 +2592,10 @@ en:
         # 'terms: gallery,hall,hallway,indoor,passage,passageway'
         terms: '<translate with synonyms or related terms for ''Indoor Corridor'', separated by commas>'
       highway/crossing:
+        # 'highway=crossing, project=OpenSidewalks'
+        name: Street Crossing
+        terms: '<translate with synonyms or related terms for ''Street Crossing'', separated by commas>'
+      highway/crossing_no_project_tag:
         # highway=crossing
         name: Street Crossing
         terms: '<translate with synonyms or related terms for ''Street Crossing'', separated by commas>'
@@ -2597,6 +2616,11 @@ en:
         terms: '<translate with synonyms or related terms for ''Elevator'', separated by commas>'
       highway/footway:
         # 'highway=footway, project=OpenSidewalks'
+        name: Foot Path
+        # 'terms: hike,hiking,trackway,trail,walk'
+        terms: '<translate with synonyms or related terms for ''Foot Path'', separated by commas>'
+      highway/footway_no_project_tag:
+        # highway=footway
         name: Foot Path
         # 'terms: hike,hiking,trackway,trail,walk'
         terms: '<translate with synonyms or related terms for ''Foot Path'', separated by commas>'
@@ -2652,6 +2676,11 @@ en:
         terms: '<translate with synonyms or related terms for ''Racetrack (Motorsport)'', separated by commas>'
       highway/ramp:
         # 'highway=steps, ramp=yes, project=OpenSidewalks'
+        name: Ramp
+        # 'terms: ramp,stairs,staircase'
+        terms: '<translate with synonyms or related terms for ''Ramp'', separated by commas>'
+      highway/ramp_no_project_tag:
+        # 'highway=steps, ramp=yes'
         name: Ramp
         # 'terms: ramp,stairs,staircase'
         terms: '<translate with synonyms or related terms for ''Ramp'', separated by commas>'
@@ -2712,6 +2741,11 @@ en:
         terms: '<translate with synonyms or related terms for ''Speed Camera'', separated by commas>'
       highway/steps:
         # 'highway=steps, project=OpenSidewalks'
+        name: Steps
+        # 'terms: ramp,stairs,staircase'
+        terms: '<translate with synonyms or related terms for ''Steps'', separated by commas>'
+      highway/steps_no_project_tag:
+        # highway=steps
         name: Steps
         # 'terms: ramp,stairs,staircase'
         terms: '<translate with synonyms or related terms for ''Steps'', separated by commas>'

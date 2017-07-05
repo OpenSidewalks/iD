@@ -1,18 +1,15 @@
 {
     "fields": [
         "crossing",
-        "access",
-        "surface",
+        "wheelchair",
         "kerb",
         "tactile_paving"
     ],
     "geometry": [
-        "line"
+        "vertex"
     ],
     "tags": {
-        "highway": "footway",
-        "footway": "crossing",
-        "comment": "/* Note: should match crosswalk instead of this one. */"
+        "highway": "crossing"
     },
     "reference": {
         "key": "footway",

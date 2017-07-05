@@ -4,21 +4,22 @@
         "surface",
         "access",
         "wheelchair",
-        "crossing",
-        "tactile_paving"
+        "width",
+        "shade",
+        "lit",
+        "structure"
     ],
     "geometry": [
         "line"
     ],
     "tags": {
         "highway": "footway",
-        "footway": "crossing",
-        "project":"OpenSidewalks"
+        "footway": "sidewalk"
     },
     "reference": {
-        "key": "highway",
-        "value": "crossing"
+        "key": "footway",
+        "value": "sidewalk"
     },
     "terms": [],
-    "name": "Pedestrian Crosswalk"
+    "name": "Sidewalk"
 }

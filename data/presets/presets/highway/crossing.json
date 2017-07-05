@@ -9,7 +9,8 @@
         "vertex"
     ],
     "tags": {
-        "highway": "crossing"
+        "highway": "crossing",
+        "project":"OpenSidewalks"
     },
     "reference": {
         "key": "footway",
